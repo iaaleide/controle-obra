@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { AcaoPresencaHistorico } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import { presencaAlterada, registrarHistoricoPresenca } from "@/lib/presenca-historico";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -104,30 +106,54 @@ export async function POST(request: Request) {
     },
   });
 
+  const dadosNovos = {
+    presente: !!presente,
+    observacao: observacao || null,
+    obraId,
+  };
+
   if (existente) {
     if (!temPermissao(session.perfil, "editar_presenca")) {
       return NextResponse.json(
-        { error: "Registro já existe. Apenas administrador pode alterar." },
+        { error: "Registro já existe. Sem permissão para alterar." },
         { status: 403 }
       );
     }
 
+    if (!presencaAlterada(existente, dadosNovos)) {
+      return NextResponse.json(existente);
+    }
+
+    const anterior = {
+      presente: existente.presente,
+      observacao: existente.observacao,
+      obraId: existente.obraId,
+    };
+
     const atualizada = await prisma.presenca.update({
       where: { id: existente.id },
-      data: { presente: !!presente, observacao: observacao || null },
+      data: dadosNovos,
     });
-    return NextResponse.json(atualizada);
+
+    await registrarHistoricoPresenca(
+      atualizada,
+      AcaoPresencaHistorico.ALTERACAO,
+      session,
+      anterior
+    );
+
+    return NextResponse.json({ ...atualizada, alterado: true });
   }
 
   const presenca = await prisma.presenca.create({
     data: {
       funcionarioId,
-      obraId,
       data: dataRef,
-      presente: !!presente,
-      observacao: observacao || null,
+      ...dadosNovos,
     },
   });
+
+  await registrarHistoricoPresenca(presenca, AcaoPresencaHistorico.CRIACAO, session);
 
   return NextResponse.json(presenca, { status: 201 });
 }

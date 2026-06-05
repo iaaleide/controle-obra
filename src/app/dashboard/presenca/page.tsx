@@ -22,6 +22,26 @@ interface User {
   perfil: "ADMIN" | "MESTRE" | "VISITANTE";
 }
 
+interface PresencaRegistro {
+  id: string;
+  presente: boolean;
+  observacao: string | null;
+}
+
+interface HistoricoItem {
+  id: string;
+  acao: "CRIACAO" | "ALTERACAO";
+  presente: boolean;
+  observacao: string | null;
+  obraNome: string;
+  presenteAnterior: boolean | null;
+  observacaoAnterior: string | null;
+  obraAnteriorNome: string | null;
+  usuarioNome: string;
+  usuarioPerfil: string;
+  criadoEm: string;
+}
+
 type Passo = "funcionario" | "obra" | "alocar" | "presenca";
 
 export default function PresencaPage() {
@@ -41,6 +61,8 @@ export default function PresencaPage() {
   const [observacao, setObservacao] = useState("");
   const [confirmarAlocacao, setConfirmarAlocacao] = useState(false);
 
+  const [presencaExistente, setPresencaExistente] = useState<PresencaRegistro | null>(null);
+  const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
@@ -73,8 +95,19 @@ export default function PresencaPage() {
     setPresente(false);
     setObservacao("");
     setConfirmarAlocacao(false);
+    setPresencaExistente(null);
+    setHistorico([]);
     setMensagem("");
     setBusca("");
+  }
+
+  async function carregarHistorico(presencaId: string) {
+    const res = await fetch(`/api/presencas/historico?presencaId=${presencaId}`);
+    if (res.ok) {
+      setHistorico(await res.json());
+    } else {
+      setHistorico([]);
+    }
   }
 
   function selecionarFuncionario(f: Funcionario) {
@@ -93,6 +126,12 @@ export default function PresencaPage() {
     if (res.ok) {
       setPresente(dados.presenca?.presente ?? false);
       setObservacao(dados.presenca?.observacao ?? "");
+      setPresencaExistente(dados.presenca ?? null);
+      if (dados.presenca?.id) {
+        await carregarHistorico(dados.presenca.id);
+      } else {
+        setHistorico([]);
+      }
     }
   }
 
@@ -169,9 +208,47 @@ export default function PresencaPage() {
     if (!res.ok) {
       setMensagem(result.error);
     } else {
-      setMensagem("Presença salva!");
+      const foiAlteracao = !!presencaExistente || result.alterado;
+      setPresencaExistente({ id: result.id, presente: result.presente, observacao: result.observacao });
+      await carregarHistorico(result.id);
+      setMensagem(
+        foiAlteracao
+          ? "Presença atualizada — alteração arquivada no histórico."
+          : "Presença registrada — salva no histórico."
+      );
     }
     setSalvando(false);
+  }
+
+  function labelPerfilHistorico(perfil: string) {
+    const labels: Record<string, string> = {
+      ADMIN: "Administrador",
+      MESTRE: "Mestre de Obra",
+      VISITANTE: "Visitante",
+    };
+    return labels[perfil] ?? perfil;
+  }
+
+  function formatarHistorico(item: HistoricoItem) {
+    const quando = new Date(item.criadoEm).toLocaleString("pt-BR");
+    const status = item.presente ? "Presente" : "Ausente";
+
+    if (item.acao === "CRIACAO") {
+      return `${quando} — ${item.usuarioNome} (${labelPerfilHistorico(item.usuarioPerfil)}) registrou: ${status} em ${item.obraNome}`;
+    }
+
+    const anterior = item.presenteAnterior ? "Presente" : "Ausente";
+    const partes = [
+      `${quando} — ${item.usuarioNome} (${labelPerfilHistorico(item.usuarioPerfil)}) alterou:`,
+      `presença ${anterior} → ${status}`,
+    ];
+    if (item.obraAnteriorNome && item.obraAnteriorNome !== item.obraNome) {
+      partes.push(`obra ${item.obraAnteriorNome} → ${item.obraNome}`);
+    }
+    if ((item.observacaoAnterior ?? "") !== (item.observacao ?? "")) {
+      partes.push("observação atualizada");
+    }
+    return partes.join(" · ");
   }
 
   const filtrados = funcionarios.filter((f) =>
@@ -335,6 +412,12 @@ export default function PresencaPage() {
               </p>
             </div>
 
+            {presencaExistente && podeRegistrar && (
+              <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Já existe registro nesta data. Você pode alterar — cada mudança fica arquivada.
+              </p>
+            )}
+
             {mensagem && (
               <p className="mb-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700">
                 {mensagem}
@@ -378,10 +461,26 @@ export default function PresencaPage() {
                   onClick={salvarPresenca}
                   fullWidth
                 >
-                  Salvar presença
+                  {presencaExistente ? "Atualizar presença" : "Salvar presença"}
                 </Button>
               )}
             </div>
+
+            {historico.length > 0 && (
+              <div className="mt-4 rounded-xl border border-slate-100 p-4">
+                <p className="mb-3 text-sm font-medium text-slate-700">Histórico de alterações</p>
+                <ul className="space-y-2">
+                  {historico.map((item) => (
+                    <li
+                      key={item.id}
+                      className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600"
+                    >
+                      {formatarHistorico(item)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         )}
       </Card>

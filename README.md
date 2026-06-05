@@ -33,5 +33,5 @@ Instruções completas em **`DEPLOY-VERCEL.md`**.
 | Perfil | Permissões |
 |--------|------------|
 | Administrador | Cadastra e altera tudo |
-| Mestre de Obra | Cadastra, não altera |
+| Mestre de Obra | Cadastra funcionários/obras/presença; pode alterar presença já registrada (histórico arquivado); não edita cadastros nem exclui |
 | Visitante | Só visualiza e exporta PDF |

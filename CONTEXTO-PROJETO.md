@@ -11,7 +11,7 @@ Sistema web de controle de presença de funcionários em obras de construção.
 Funcionalidades principais:
 
 - Cadastro de **obras** e **funcionários** (um funcionário pode estar alocado em várias obras)
-- Registro de **presença** por funcionário, obra e data
+- Registro e **alteração de presença** por funcionário, obra e data (com histórico arquivado)
 - **Relatórios** semanais com exportação PDF e envio por **WhatsApp**
 
 ---
@@ -103,8 +103,11 @@ O app sobe em http://localhost:3000.
 ### 2. Presença em 4 passos
 
 - Tela: `/dashboard/presenca`
-- Fluxo: selecionar funcionário → escolher obra + data → alocar à obra se necessário → registrar presença
+- Fluxo: selecionar funcionário → escolher obra + data → alocar à obra se necessário → registrar ou **alterar** presença
 - API: `GET/POST /api/presencas`
+- Perfis **ADMIN** e **MESTRE** podem registrar e alterar dias já marcados
+- Cada criação ou alteração gera registro em `PresencaHistorico` (quem fez, quando, valores anteriores)
+- Consulta do histórico na própria tela de presença e via `GET /api/presencas/historico`
 
 ### 3. Telefone +55 e WhatsApp
 
@@ -112,7 +115,14 @@ O app sobe em http://localhost:3000.
 - Componente de input: `src/components/ui/TelefoneBrasilInput.tsx`
 - Relatórios com link WhatsApp: `src/lib/relatorio.ts`, `src/app/api/relatorios/enviar/route.ts`
 
-### 4. Exclusão soft (somente ADMIN)
+### 4. Histórico de presença (auditoria)
+
+- Modelo `PresencaHistorico` em `prisma/schema.prisma` (ações `CRIACAO` e `ALTERACAO`)
+- Lógica: `src/lib/presenca-historico.ts`
+- API: `GET /api/presencas/historico?presencaId=...` ou `?funcionarioId=...&data=...`
+- Visível para quem tem `ver_presenca` (ADMIN, MESTRE e VISITANTE)
+
+### 5. Exclusão soft (somente ADMIN)
 
 - Campo `ativo = false` em `Funcionario` (não remove do banco)
 - Confirmação na UI antes de desativar
@@ -128,7 +138,7 @@ Definidas em `src/lib/permissions.ts`:
 | Perfil | Pode fazer |
 |--------|------------|
 | **ADMIN** | Tudo: cadastrar, editar, excluir (soft), gerenciar usuários, relatórios |
-| **MESTRE** | Cadastrar funcionários, obras e presença; **não** edita nem exclui |
+| **MESTRE** | Cadastrar funcionários, obras e presença; **alterar** presença já registrada; **não** edita funcionários/obras nem exclui |
 | **VISITANTE** | Apenas visualizar dashboard, listas e relatórios |
 
 Middleware de proteção de rotas: `src/middleware.ts`.
@@ -140,7 +150,7 @@ Middleware de proteção de rotas: `src/middleware.ts`.
 ### Schema e dados
 
 ```
-prisma/schema.prisma      # Modelos: Usuario, Obra, Funcionario, FuncionarioObra, Presenca
+prisma/schema.prisma      # Modelos: Usuario, Obra, Funcionario, FuncionarioObra, Presenca, PresencaHistorico
 prisma/seed.ts            # Dados iniciais (usuário atomica, obras de exemplo)
 ```
 
@@ -156,10 +166,11 @@ src/utils/supabase/       # client.ts, server.ts, middleware.ts (Supabase SSR)
 ### Domínio
 
 ```
-src/lib/telefone.ts       # Formatação telefone Brasil (+55)
-src/lib/relatorio.ts      # Geração de relatório semanal + link WhatsApp
-src/lib/pdf.ts            # Exportação PDF
-src/lib/prisma.ts         # Cliente Prisma singleton
+src/lib/telefone.ts           # Formatação telefone Brasil (+55)
+src/lib/presenca-historico.ts # Arquivamento de criação/alteração de presença
+src/lib/relatorio.ts          # Geração de relatório semanal + link WhatsApp
+src/lib/pdf.ts                # Exportação PDF
+src/lib/prisma.ts             # Cliente Prisma singleton
 ```
 
 ### Páginas (dashboard)

@@ -128,7 +128,7 @@ git push -u origin main
 | Perfil        | O que pode fazer                                      |
 |---------------|-------------------------------------------------------|
 | Administrador | Cadastra e altera tudo                                |
-| Mestre de Obra| Cadastra, mas não altera registros existentes         |
+| Mestre de Obra| Cadastra e altera presença (com histórico); não edita funcionários/obras |
 | Visitante     | Só visualiza resumos e exporta PDF                    |
 
 O admin `atomica` pode cadastrar outros usuários em **Dashboard → Usuários**.

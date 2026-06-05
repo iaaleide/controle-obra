@@ -14,6 +14,11 @@ enum Perfil {
   VISITANTE
 }
 
+enum AcaoPresencaHistorico {
+  CRIACAO
+  ALTERACAO
+}
+
 model Usuario {
   id           String   @id @default(cuid())
   login        String   @unique
@@ -24,7 +29,8 @@ model Usuario {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  resetTokens PasswordReset[]
+  resetTokens        PasswordReset[]
+  historicoPresencas PresencaHistorico[]
 }
 
 model Obra {
@@ -77,9 +83,34 @@ model Presenca {
 
   funcionario Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
   obra        Obra        @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  historico   PresencaHistorico[]
 
   @@unique([funcionarioId, data])
   @@index([obraId, data])
+}
+
+model PresencaHistorico {
+  id                 String                @id @default(cuid())
+  presencaId         String
+  funcionarioId      String
+  obraId             String
+  data               DateTime              @db.Date
+  presente           Boolean
+  observacao         String?               @db.VarChar(500)
+  acao               AcaoPresencaHistorico
+  usuarioId          String
+  usuarioNome        String
+  usuarioPerfil      Perfil
+  presenteAnterior   Boolean?
+  observacaoAnterior String?               @db.VarChar(500)
+  obraIdAnterior     String?
+  criadoEm           DateTime              @default(now())
+
+  presenca Presenca @relation(fields: [presencaId], references: [id], onDelete: Cascade)
+  usuario  Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([presencaId])
+  @@index([funcionarioId, data])
 }
 
 model PasswordReset {

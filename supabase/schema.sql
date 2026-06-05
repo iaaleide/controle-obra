@@ -2,6 +2,7 @@
 -- Projeto: controle-obra | Conta: ia.aleide@gmail.com
 
 CREATE TYPE "Perfil" AS ENUM ('ADMIN', 'MESTRE', 'VISITANTE');
+CREATE TYPE "AcaoPresencaHistorico" AS ENUM ('CRIACAO', 'ALTERACAO');
 
 CREATE TABLE "Usuario" (
     "id" TEXT NOT NULL,
@@ -68,6 +69,29 @@ CREATE TABLE "Presenca" (
 CREATE UNIQUE INDEX "Presenca_funcionarioId_data_key" ON "Presenca"("funcionarioId", "data");
 CREATE INDEX "Presenca_obraId_data_idx" ON "Presenca"("obraId", "data");
 
+CREATE TABLE "PresencaHistorico" (
+    "id" TEXT NOT NULL,
+    "presencaId" TEXT NOT NULL,
+    "funcionarioId" TEXT NOT NULL,
+    "obraId" TEXT NOT NULL,
+    "data" DATE NOT NULL,
+    "presente" BOOLEAN NOT NULL,
+    "observacao" VARCHAR(500),
+    "acao" "AcaoPresencaHistorico" NOT NULL,
+    "usuarioId" TEXT NOT NULL,
+    "usuarioNome" TEXT NOT NULL,
+    "usuarioPerfil" "Perfil" NOT NULL,
+    "presenteAnterior" BOOLEAN,
+    "observacaoAnterior" VARCHAR(500),
+    "obraIdAnterior" TEXT,
+    "criadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PresencaHistorico_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX "PresencaHistorico_presencaId_idx" ON "PresencaHistorico"("presencaId");
+CREATE INDEX "PresencaHistorico_funcionarioId_data_idx" ON "PresencaHistorico"("funcionarioId", "data");
+
 CREATE TABLE "PasswordReset" (
     "id" TEXT NOT NULL,
     "usuarioId" TEXT NOT NULL,
@@ -93,6 +117,12 @@ ALTER TABLE "Presenca" ADD CONSTRAINT "Presenca_funcionarioId_fkey"
 
 ALTER TABLE "Presenca" ADD CONSTRAINT "Presenca_obraId_fkey"
     FOREIGN KEY ("obraId") REFERENCES "Obra"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "PresencaHistorico" ADD CONSTRAINT "PresencaHistorico_presencaId_fkey"
+    FOREIGN KEY ("presencaId") REFERENCES "Presenca"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "PresencaHistorico" ADD CONSTRAINT "PresencaHistorico_usuarioId_fkey"
+    FOREIGN KEY ("usuarioId") REFERENCES "Usuario"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE "PasswordReset" ADD CONSTRAINT "PasswordReset_usuarioId_fkey"
     FOREIGN KEY ("usuarioId") REFERENCES "Usuario"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -43,6 +43,7 @@ const PERMISSOES: Record<Perfil, Permissao[]> = {
     "cadastrar_obra",
     "ver_presenca",
     "cadastrar_presenca",
+    "editar_presenca",
     "ver_relatorios",
     "exportar_pdf",
     "enviar_relatorio",
