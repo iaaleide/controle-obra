@@ -1,18 +1,10 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { DEJAVU_SANS_BASE64 } from "@/lib/pdf-font-dejavu";
 import {
   linhasRelatorioVisiveis,
   RODAPE_RELATORIO,
   type RelatorioSemanal,
 } from "@/lib/pdf";
-
-const DEJAVU_VFS = "DejaVuSans.ttf";
-
-function registrarFonteUnicode(doc: jsPDF) {
-  doc.addFileToVFS(DEJAVU_VFS, DEJAVU_SANS_BASE64);
-  doc.addFont(DEJAVU_VFS, "DejaVuSans", "normal");
-}
 
 function desenharRodapePdf(doc: jsPDF) {
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -28,8 +20,6 @@ function desenharRodapePdf(doc: jsPDF) {
     { align: "center" }
   );
 
-  registrarFonteUnicode(doc);
-  doc.setFont("DejaVuSans", "normal");
   doc.setFontSize(9);
   doc.setTextColor(30, 58, 95);
   doc.text(RODAPE_RELATORIO, pageWidth / 2, pageHeight - 10, { align: "center" });
@@ -71,10 +61,13 @@ export function gerarPdfRelatorio(dados: RelatorioSemanal): Buffer {
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { left: 14, right: 14, bottom: 32 },
     showFoot: "never",
-    didDrawPage: () => {
-      desenharRodapePdf(doc);
-    },
   });
+
+  const totalPages = doc.getNumberOfPages();
+  for (let page = 1; page <= totalPages; page++) {
+    doc.setPage(page);
+    desenharRodapePdf(doc);
+  }
 
   const arrayBuffer = doc.output("arraybuffer");
   return Buffer.from(arrayBuffer);
