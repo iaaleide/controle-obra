@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   const obraId = searchParams.get("obraId");
   const dataInicio = searchParams.get("dataInicio");
   const dataFim = searchParams.get("dataFim");
+  const incluirSemPresenca = searchParams.get("incluirSemPresenca") === "true";
 
   if (!obraId) {
     return NextResponse.json({ error: "obraId é obrigatório" }, { status: 400 });
@@ -24,9 +25,10 @@ export async function GET(request: Request) {
       ? await gerarRelatorioPeriodo(
           obraId,
           new Date(dataInicio + "T00:00:00"),
-          new Date(dataFim + "T23:59:59")
+          new Date(dataFim + "T23:59:59"),
+          { incluirSemPresenca }
         )
-      : await gerarRelatorioSemanal(obraId);
+      : await gerarRelatorioSemanal(obraId, undefined, { incluirSemPresenca });
 
   if (!relatorio) {
     return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });

@@ -1,6 +1,33 @@
 import { prisma } from "./prisma";
 import type { RelatorioSemanal, RelatorioLinha } from "./pdf";
 
+export interface OpcoesRelatorio {
+  incluirSemPresenca?: boolean;
+}
+
+function filtrarLinhas(
+  linhas: RelatorioLinha[],
+  incluirSemPresenca: boolean
+): RelatorioLinha[] {
+  if (incluirSemPresenca) return linhas;
+  return linhas.filter((l) => l.diasTrabalhados > 0);
+}
+
+function montarRelatorio(
+  obra: { nome: string },
+  periodo: string,
+  linhas: RelatorioLinha[],
+  incluirSemPresenca: boolean
+): RelatorioSemanal {
+  const linhasFiltradas = filtrarLinhas(linhas, incluirSemPresenca);
+  return {
+    obra: obra.nome,
+    periodo,
+    linhas: linhasFiltradas,
+    totalPresencas: linhasFiltradas.reduce((acc, l) => acc + l.diasTrabalhados, 0),
+  };
+}
+
 function inicioSemana(data: Date): Date {
   const d = new Date(data);
   const dia = d.getDay();
@@ -23,8 +50,10 @@ function formatarData(d: Date): string {
 
 export async function gerarRelatorioSemanal(
   obraId: string,
-  referencia?: Date
+  referencia?: Date,
+  opcoes: OpcoesRelatorio = {}
 ): Promise<RelatorioSemanal | null> {
+  const incluirSemPresenca = opcoes.incluirSemPresenca ?? false;
   const obra = await prisma.obra.findUnique({ where: { id: obraId } });
   if (!obra) return null;
 
@@ -68,21 +97,21 @@ export async function gerarRelatorioSemanal(
     datas: f.presencas.map((p) => formatarData(p.data)),
   }));
 
-  const totalPresencas = linhas.reduce((acc, l) => acc + l.diasTrabalhados, 0);
-
-  return {
-    obra: obra.nome,
-    periodo: `${formatarData(inicio)} a ${formatarData(fim)}`,
+  return montarRelatorio(
+    obra,
+    `${formatarData(inicio)} a ${formatarData(fim)}`,
     linhas,
-    totalPresencas,
-  };
+    incluirSemPresenca
+  );
 }
 
 export async function gerarRelatorioPeriodo(
   obraId: string,
   dataInicio: Date,
-  dataFim: Date
+  dataFim: Date,
+  opcoes: OpcoesRelatorio = {}
 ): Promise<RelatorioSemanal | null> {
+  const incluirSemPresenca = opcoes.incluirSemPresenca ?? false;
   const obra = await prisma.obra.findUnique({ where: { id: obraId } });
   if (!obra) return null;
 
@@ -122,10 +151,10 @@ export async function gerarRelatorioPeriodo(
     datas: f.presencas.map((p) => formatarData(p.data)),
   }));
 
-  return {
-    obra: obra.nome,
-    periodo: `${formatarData(dataInicio)} a ${formatarData(dataFim)}`,
+  return montarRelatorio(
+    obra,
+    `${formatarData(dataInicio)} a ${formatarData(dataFim)}`,
     linhas,
-    totalPresencas: linhas.reduce((acc, l) => acc + l.diasTrabalhados, 0),
-  };
+    incluirSemPresenca
+  );
 }

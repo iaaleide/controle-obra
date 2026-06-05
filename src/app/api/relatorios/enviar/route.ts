@@ -12,7 +12,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
-  const { obraId, tipo, destinatario, dataInicio, dataFim } = await request.json();
+  const { obraId, tipo, destinatario, dataInicio, dataFim, incluirSemPresenca } =
+    await request.json();
+  const opcoes = { incluirSemPresenca: !!incluirSemPresenca };
 
   if (!obraId || !tipo) {
     return NextResponse.json({ error: "obraId e tipo são obrigatórios" }, { status: 400 });
@@ -23,9 +25,10 @@ export async function POST(request: Request) {
       ? await gerarRelatorioPeriodo(
           obraId,
           new Date(dataInicio + "T00:00:00"),
-          new Date(dataFim + "T23:59:59")
+          new Date(dataFim + "T23:59:59"),
+          opcoes
         )
-      : await gerarRelatorioSemanal(obraId);
+      : await gerarRelatorioSemanal(obraId, undefined, opcoes);
 
   if (!relatorio) {
     return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });

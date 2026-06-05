@@ -24,6 +24,7 @@ export default function RelatoriosPage() {
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [incluirSemPresenca, setIncluirSemPresenca] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
@@ -42,7 +43,9 @@ export default function RelatoriosPage() {
     setLoading(true);
     setMensagem("");
     try {
-      const res = await fetch(`/api/relatorios/semanal?obraId=${obraId}`);
+      const res = await fetch(
+        `/api/relatorios/semanal?obraId=${obraId}&incluirSemPresenca=${incluirSemPresenca}`
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setRelatorio(data);
@@ -55,7 +58,30 @@ export default function RelatoriosPage() {
 
   function exportarPdf() {
     if (!obraId) return;
-    window.open(`/api/relatorios/pdf?obraId=${obraId}`, "_blank");
+    window.open(
+      `/api/relatorios/pdf?obraId=${obraId}&incluirSemPresenca=${incluirSemPresenca}`,
+      "_blank"
+    );
+  }
+
+  async function alternarIncluirSemPresenca(checked: boolean) {
+    setIncluirSemPresenca(checked);
+    if (!relatorio || !obraId) return;
+
+    setMensagem("");
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/relatorios/semanal?obraId=${obraId}&incluirSemPresenca=${checked}`
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setRelatorio(data);
+    } catch (e) {
+      setMensagem(e instanceof Error ? e.message : "Erro ao atualizar relatório");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function enviarEmail() {
@@ -64,7 +90,12 @@ export default function RelatoriosPage() {
     const res = await fetch("/api/relatorios/enviar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ obraId, tipo: "email", destinatario: email }),
+      body: JSON.stringify({
+        obraId,
+        tipo: "email",
+        destinatario: email,
+        incluirSemPresenca,
+      }),
     });
     const data = await res.json();
     setMensagem(data.message || data.error);
@@ -76,7 +107,12 @@ export default function RelatoriosPage() {
     const res = await fetch("/api/relatorios/enviar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ obraId, tipo: "whatsapp", destinatario: whatsapp }),
+      body: JSON.stringify({
+        obraId,
+        tipo: "whatsapp",
+        destinatario: whatsapp,
+        incluirSemPresenca,
+      }),
     });
     const data = await res.json();
     if (data.url) window.open(data.url, "_blank");
@@ -101,6 +137,22 @@ export default function RelatoriosPage() {
               ))}
             </select>
           </div>
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <input
+              type="checkbox"
+              checked={incluirSemPresenca}
+              onChange={(e) => alternarIncluirSemPresenca(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300"
+            />
+            <span className="text-sm text-slate-600">
+              <span className="font-medium text-slate-800">
+                Incluir quem não veio na semana
+              </span>
+              <span className="mt-0.5 block text-xs text-slate-500">
+                Desmarcado (padrão): só quem teve pelo menos 1 dia. Marcado: lista todos com 0 dia(s).
+              </span>
+            </span>
+          </label>
           <Button onClick={carregarRelatorio} loading={loading} fullWidth>
             Carregar resumo da semana
           </Button>
@@ -111,8 +163,18 @@ export default function RelatoriosPage() {
         <Card title={`${relatorio.obra} — ${relatorio.periodo}`}>
           <p className="mb-3 text-sm text-slate-500">
             Total de presenças: <strong>{relatorio.totalPresencas}</strong>
+            {!incluirSemPresenca && (
+              <span className="mt-1 block text-xs text-slate-400">
+                Exibindo só quem trabalhou pelo menos 1 dia nesta semana.
+              </span>
+            )}
           </p>
           <div className="space-y-2">
+            {relatorio.linhas.length === 0 && (
+              <p className="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">
+                Nenhum funcionário com presença nesta semana.
+              </p>
+            )}
             {relatorio.linhas.map((l) => (
               <div key={l.funcionario} className="rounded-xl bg-slate-50 p-3">
                 <div className="flex justify-between">
