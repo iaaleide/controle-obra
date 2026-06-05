@@ -1,0 +1,10 @@
+{
+  "name": "Controle Obra",
+  "short_name": "Obra",
+  "description": "Controle de funcionários e presença em obras",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "orientation": "portrait"
+}

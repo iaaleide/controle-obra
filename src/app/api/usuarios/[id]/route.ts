@@ -1,0 +1,35 @@
+import { NextResponse } from "next/server";
+import { getSession, hashSenha } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { temPermissao } from "@/lib/permissions";
+import { Perfil } from "@prisma/client";
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session || !temPermissao(session.perfil, "gerenciar_usuarios")) {
+    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const { nome, perfil, ativo, senha } = await request.json();
+
+  if (perfil && !Object.values(Perfil).includes(perfil)) {
+    return NextResponse.json({ error: "Perfil inválido" }, { status: 400 });
+  }
+
+  const usuario = await prisma.usuario.update({
+    where: { id },
+    data: {
+      ...(nome !== undefined && { nome }),
+      ...(perfil !== undefined && { perfil }),
+      ...(ativo !== undefined && { ativo }),
+      ...(senha && { senhaHash: await hashSenha(senha) }),
+    },
+    select: { id: true, login: true, nome: true, perfil: true, ativo: true },
+  });
+
+  return NextResponse.json(usuario);
+}

@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Perfil {
+  ADMIN
+  MESTRE
+  VISITANTE
+}
+
+model Usuario {
+  id           String   @id @default(cuid())
+  login        String   @unique
+  senhaHash    String
+  nome         String
+  perfil       Perfil   @default(VISITANTE)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  resetTokens PasswordReset[]
+}
+
+model Obra {
+  id           String   @id @default(cuid())
+  nome         String
+  endereco     String?
+  descricao    String?
+  ativa        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  funcionarios Funcionario[]
+  presencas    Presenca[]
+}
+
+model Funcionario {
+  id           String   @id @default(cuid())
+  nome         String
+  cargo        String?
+  telefone     String?
+  ativo        Boolean  @default(true)
+  obraId       String
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  obra      Obra       @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  presencas Presenca[]
+
+  @@index([obraId])
+}
+
+model Presenca {
+  id            String   @id @default(cuid())
+  funcionarioId String
+  obraId        String
+  data          DateTime @db.Date
+  presente      Boolean  @default(false)
+  observacao    String?  @db.VarChar(500)
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  funcionario Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  obra        Obra        @relation(fields: [obraId], references: [id], onDelete: Cascade)
+
+  @@unique([funcionarioId, data])
+  @@index([obraId, data])
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  usuarioId String
+  token     String   @unique
+  expiraEm  DateTime
+  usado     Boolean  @default(false)
+  criadoEm  DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
