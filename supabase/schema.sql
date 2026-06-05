@@ -36,14 +36,21 @@ CREATE TABLE "Funcionario" (
     "cargo" TEXT,
     "telefone" TEXT,
     "ativo" BOOLEAN NOT NULL DEFAULT true,
-    "obraId" TEXT NOT NULL,
     "criadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "atualizadoEm" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Funcionario_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "Funcionario_obraId_idx" ON "Funcionario"("obraId");
+CREATE TABLE "FuncionarioObra" (
+    "funcionarioId" TEXT NOT NULL,
+    "obraId" TEXT NOT NULL,
+    "criadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "FuncionarioObra_pkey" PRIMARY KEY ("funcionarioId", "obraId")
+);
+
+CREATE INDEX "FuncionarioObra_obraId_idx" ON "FuncionarioObra"("obraId");
 
 CREATE TABLE "Presenca" (
     "id" TEXT NOT NULL,
@@ -75,7 +82,10 @@ CREATE TABLE "PasswordReset" (
 CREATE UNIQUE INDEX "PasswordReset_token_key" ON "PasswordReset"("token");
 CREATE INDEX "PasswordReset_token_idx" ON "PasswordReset"("token");
 
-ALTER TABLE "Funcionario" ADD CONSTRAINT "Funcionario_obraId_fkey"
+ALTER TABLE "FuncionarioObra" ADD CONSTRAINT "FuncionarioObra_funcionarioId_fkey"
+    FOREIGN KEY ("funcionarioId") REFERENCES "Funcionario"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "FuncionarioObra" ADD CONSTRAINT "FuncionarioObra_obraId_fkey"
     FOREIGN KEY ("obraId") REFERENCES "Obra"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "Presenca" ADD CONSTRAINT "Presenca_funcionarioId_fkey"

@@ -37,7 +37,8 @@ export async function POST(request: Request) {
         perfil: usuario.perfil,
       },
     });
-  } catch {
+  } catch (err) {
+    console.error("LOGIN_ERROR", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }

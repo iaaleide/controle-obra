@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const dataRef = new Date(data + "T12:00:00");
 
   const funcionarios = await prisma.funcionario.findMany({
-    where: { obraId, ativo: true },
+    where: { ativo: true, obras: { some: { obraId } } },
     include: {
       presencas: {
         where: { data: dataRef },
@@ -57,6 +57,16 @@ export async function POST(request: Request) {
   }
 
   const dataRef = new Date(data + "T12:00:00");
+
+  const alocado = await prisma.funcionarioObra.findUnique({
+    where: { funcionarioId_obraId: { funcionarioId, obraId } },
+  });
+  if (!alocado) {
+    return NextResponse.json(
+      { error: "Funcionário não está alocado nesta obra" },
+      { status: 400 }
+    );
+  }
 
   const existente = await prisma.presenca.findUnique({
     where: {

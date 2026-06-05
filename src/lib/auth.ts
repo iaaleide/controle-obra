@@ -85,5 +85,5 @@ export async function requireSession(): Promise<SessionUser> {
 }
 
 export async function buscarUsuarioPorLogin(login: string) {
-  return prisma.usuario.findUnique({ where: { login, ativo: true } });
+  return prisma.usuario.findFirst({ where: { login, ativo: true } });
 }

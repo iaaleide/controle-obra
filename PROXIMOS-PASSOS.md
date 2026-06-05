@@ -71,6 +71,28 @@ Abra no navegador ou celular: **http://localhost:3000**
 
 ---
 
+## ⚠️ Vercel + Supabase (importante)
+
+O banco deste projeto usa **somente IPv6** no host direto (`db.vctdqymehlzxrlterhet.supabase.co`).
+A Vercel **não consegue** conectar por esse host — por isso o login em produção dá "Erro interno".
+
+**Solução (escolha uma):**
+
+### Opção A — Ativar IPv4 no Supabase (mais rápido)
+1. [Painel do projeto](https://supabase.com/dashboard/project/vctdqymehlzxrlterhet/settings/addons)
+2. **Add-ons** → **IPv4** → ativar
+3. **Connect** → copiar a URI **Direct connection** (com IPv4)
+4. Colar no `.env` como `DATABASE_URL` e `DIRECT_URL`
+5. Rodar: `node scripts/push-env-vercel.mjs` e `npx vercel --prod --yes`
+
+### Opção B — Criar projeto Supabase novo
+1. [supabase.com](https://supabase.com) → **New project** → nome `controle-obra`
+2. Região: **South America (São Paulo)**
+3. **Connect** → copiar URI **Transaction pooler** (porta 6543) e **Direct** (porta 5432)
+4. Atualizar `.env`, rodar `npm run db:setup`, sincronizar Vercel e deploy
+
+---
+
 ## Depois — publicar no GitHub + Vercel
 
 ### GitHub

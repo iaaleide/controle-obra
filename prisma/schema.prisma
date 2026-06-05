@@ -36,8 +36,8 @@ model Obra {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  funcionarios Funcionario[]
-  presencas    Presenca[]
+  alocacoes FuncionarioObra[]
+  presencas Presenca[]
 }
 
 model Funcionario {
@@ -46,13 +46,22 @@ model Funcionario {
   cargo        String?
   telefone     String?
   ativo        Boolean  @default(true)
-  obraId       String
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  obra      Obra       @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  obras     FuncionarioObra[]
   presencas Presenca[]
+}
 
+model FuncionarioObra {
+  funcionarioId String
+  obraId        String
+  criadoEm      DateTime @default(now())
+
+  funcionario Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  obra        Obra        @relation(fields: [obraId], references: [id], onDelete: Cascade)
+
+  @@id([funcionarioId, obraId])
   @@index([obraId])
 }
 

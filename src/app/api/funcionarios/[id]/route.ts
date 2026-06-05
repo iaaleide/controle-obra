@@ -3,6 +3,32 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
 
+const includeObras = {
+  obras: {
+    include: { obra: { select: { id: true, nome: true } } },
+  },
+} as const;
+
+function formatFuncionario(
+  f: {
+    id: string;
+    nome: string;
+    cargo: string | null;
+    telefone: string | null;
+    ativo: boolean;
+    obras: { obra: { id: string; nome: string } }[];
+  }
+) {
+  return {
+    id: f.id,
+    nome: f.nome,
+    cargo: f.cargo,
+    telefone: f.telefone,
+    ativo: f.ativo,
+    obras: f.obras.map((a) => a.obra),
+  };
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -13,13 +39,31 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const { nome, cargo, telefone, ativo } = await request.json();
+  const { nome, cargo, telefone, ativo, obraIds } = await request.json();
 
-  const funcionario = await prisma.funcionario.update({
-    where: { id },
-    data: { nome, cargo, telefone, ativo },
-    include: { obra: { select: { id: true, nome: true } } },
+  const ids = Array.isArray(obraIds) ? obraIds.filter(Boolean) : null;
+
+  const funcionario = await prisma.$transaction(async (tx) => {
+    if (ids !== null) {
+      await tx.funcionarioObra.deleteMany({ where: { funcionarioId: id } });
+      if (ids.length > 0) {
+        await tx.funcionarioObra.createMany({
+          data: ids.map((obraId: string) => ({ funcionarioId: id, obraId })),
+        });
+      }
+    }
+
+    return tx.funcionario.update({
+      where: { id },
+      data: {
+        ...(nome !== undefined ? { nome: nome.trim() } : {}),
+        ...(cargo !== undefined ? { cargo: cargo || null } : {}),
+        ...(telefone !== undefined ? { telefone: telefone || null } : {}),
+        ...(ativo !== undefined ? { ativo } : {}),
+      },
+      include: includeObras,
+    });
   });
 
-  return NextResponse.json(funcionario);
+  return NextResponse.json(formatFuncionario(funcionario));
 }

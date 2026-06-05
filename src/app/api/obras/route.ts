@@ -11,7 +11,7 @@ export async function GET() {
 
   const obras = await prisma.obra.findMany({
     where: { ativa: true },
-    include: { _count: { select: { funcionarios: true } } },
+    include: { _count: { select: { alocacoes: true } } },
     orderBy: { nome: "asc" },
   });
 

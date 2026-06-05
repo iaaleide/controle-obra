@@ -11,7 +11,7 @@ interface Obra {
   nome: string;
   endereco: string | null;
   descricao: string | null;
-  _count: { funcionarios: number };
+  _count: { alocacoes: number };
 }
 
 interface User {
@@ -117,7 +117,7 @@ export default function ObrasPage() {
               <div>
                 <p className="font-medium text-slate-800">{obra.nome}</p>
                 {obra.endereco && <p className="text-sm text-slate-500">{obra.endereco}</p>}
-                <p className="text-xs text-slate-400">{obra._count.funcionarios} funcionário(s)</p>
+                <p className="text-xs text-slate-400">{obra._count.alocacoes} funcionário(s)</p>
               </div>
               {podeEditar && (
                 <button
