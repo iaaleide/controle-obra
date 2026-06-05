@@ -4,6 +4,7 @@ import { temPermissao } from "@/lib/permissions";
 import { gerarRelatorioSemanal, gerarRelatorioPeriodo } from "@/lib/relatorio";
 import { textoRelatorioWhatsApp } from "@/lib/pdf";
 import { enviarRelatorioEmail } from "@/lib/email";
+import { paraWhatsApp } from "@/lib/telefone";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -47,7 +48,18 @@ export async function POST(request: Request) {
 
   if (tipo === "whatsapp") {
     const texto = textoRelatorioWhatsApp(relatorio);
-    const numero = destinatario?.replace(/\D/g, "") || "";
+    const numero = destinatario ? paraWhatsApp(destinatario) : null;
+
+    if (destinatario && !numero) {
+      return NextResponse.json(
+        {
+          error:
+            "Telefone inválido. Use DDD + número (ex: 11 94736-6532). O código +55 do Brasil é aplicado automaticamente.",
+        },
+        { status: 400 }
+      );
+    }
+
     const url = numero
       ? `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`
       : `https://wa.me/?text=${encodeURIComponent(texto)}`;

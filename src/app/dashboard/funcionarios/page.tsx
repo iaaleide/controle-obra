@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
 import { Plus, Pencil } from "lucide-react";
 
 interface Obra {
@@ -146,7 +147,11 @@ export default function FuncionariosPage() {
           <form onSubmit={salvar} className="mb-4 space-y-3 rounded-xl bg-slate-50 p-4">
             <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
             <Input label="Cargo" value={cargo} onChange={(e) => setCargo(e.target.value)} />
-            <Input label="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
+            <TelefoneBrasilInput
+              label="Telefone"
+              value={telefone}
+              onChange={setTelefone}
+            />
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Obras (opcional — pode selecionar várias)

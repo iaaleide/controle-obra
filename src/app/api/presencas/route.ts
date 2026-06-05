@@ -11,13 +11,43 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const obraId = searchParams.get("obraId");
+  const funcionarioId = searchParams.get("funcionarioId");
   const data = searchParams.get("data");
 
-  if (!obraId || !data) {
-    return NextResponse.json({ error: "obraId e data são obrigatórios" }, { status: 400 });
+  if (!data) {
+    return NextResponse.json({ error: "data é obrigatória" }, { status: 400 });
   }
 
   const dataRef = new Date(data + "T12:00:00");
+
+  if (funcionarioId) {
+    const funcionario = await prisma.funcionario.findUnique({
+      where: { id: funcionarioId, ativo: true },
+      include: {
+        obras: { include: { obra: { select: { id: true, nome: true } } } },
+        presencas: { where: { data: dataRef }, take: 1 },
+      },
+    });
+
+    if (!funcionario) {
+      return NextResponse.json({ error: "Funcionário não encontrado" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      funcionarioId: funcionario.id,
+      nome: funcionario.nome,
+      cargo: funcionario.cargo,
+      obras: funcionario.obras.map((a) => a.obra),
+      alocadoNaObra: obraId
+        ? funcionario.obras.some((a) => a.obraId === obraId)
+        : undefined,
+      presenca: funcionario.presencas[0] || null,
+    });
+  }
+
+  if (!obraId) {
+    return NextResponse.json({ error: "obraId ou funcionarioId é obrigatório" }, { status: 400 });
+  }
 
   const funcionarios = await prisma.funcionario.findMany({
     where: { ativo: true, obras: { some: { obraId } } },

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
 import { Download, Mail, MessageCircle } from "lucide-react";
 import type { RelatorioSemanal } from "@/lib/pdf";
 
@@ -142,14 +143,15 @@ export default function RelatoriosPage() {
                     <Mail className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex w-full gap-2">
-                  <Input
-                    placeholder="WhatsApp (opcional, só números)"
+                <div className="flex w-full items-end gap-2">
+                  <TelefoneBrasilInput
+                    label="WhatsApp"
                     value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
+                    onChange={setWhatsapp}
                     className="flex-1"
+                    hint="Opcional. Ex: 11 94736-6532"
                   />
-                  <Button variant="secondary" onClick={enviarWhatsApp}>
+                  <Button variant="secondary" onClick={enviarWhatsApp} className="shrink-0">
                     <MessageCircle className="h-4 w-4" />
                   </Button>
                 </div>

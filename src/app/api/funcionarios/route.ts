@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import { paraArmazenamento } from "@/lib/telefone";
 
 const includeObras = {
   obras: {
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
     data: {
       nome: nome.trim(),
       cargo: cargo || null,
-      telefone: telefone || null,
+      telefone: telefone ? paraArmazenamento(telefone) || null : null,
       ...(ids.length > 0
         ? { obras: { create: ids.map((obraId: string) => ({ obraId })) } }
         : {}),

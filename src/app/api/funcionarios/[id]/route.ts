@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import { paraArmazenamento } from "@/lib/telefone";
 
 const includeObras = {
   obras: {
@@ -58,7 +59,9 @@ export async function PUT(
       data: {
         ...(nome !== undefined ? { nome: nome.trim() } : {}),
         ...(cargo !== undefined ? { cargo: cargo || null } : {}),
-        ...(telefone !== undefined ? { telefone: telefone || null } : {}),
+        ...(telefone !== undefined
+          ? { telefone: telefone ? paraArmazenamento(telefone) || null : null }
+          : {}),
         ...(ativo !== undefined ? { ativo } : {}),
       },
       include: includeObras,
