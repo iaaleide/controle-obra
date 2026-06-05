@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { temPermissao, labelPerfil } from "@/lib/permissions";
 import { Card } from "@/components/ui/Card";
-import { Building2, CalendarCheck, FileText, Users, KeyRound } from "lucide-react";
+import { Building2, CalendarCheck, FileText, Users, UserRound } from "lucide-react";
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -33,7 +33,7 @@ export default async function DashboardPage() {
     {
       href: "/dashboard/relatorios",
       label: "Relatórios",
-      desc: "Resumo semanal e exportação",
+      desc: "Consulta, PDF, e-mail e WhatsApp das obras liberadas",
       icon: FileText,
       show: temPermissao(session.perfil, "ver_relatorios"),
     },
@@ -66,13 +66,13 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {temPermissao(session.perfil, "alterar_senha") && (
+      {temPermissao(session.perfil, "editar_contato") && (
         <Link
           href="/dashboard/alterar-senha"
           className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-sm text-slate-600 shadow-sm hover:bg-slate-50"
         >
-          <KeyRound className="h-4 w-4" />
-          Alterar minha senha
+          <UserRound className="h-4 w-4" />
+          Minha conta — e-mail, WhatsApp e senha
         </Link>
       )}
     </div>

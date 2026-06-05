@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getSession, hashSenha } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import { sincronizarObrasVisitante } from "@/lib/acesso-obra";
+import { validarEmail } from "@/lib/email";
+import { normalizarTelefoneOpcional } from "@/lib/telefone";
 import { Perfil } from "@prisma/client";
 
 export async function PUT(
@@ -14,10 +17,35 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const { nome, perfil, ativo, senha } = await request.json();
+  const { nome, perfil, ativo, senha, email, telefone, obraIds } = await request.json();
 
   if (perfil && !Object.values(Perfil).includes(perfil)) {
     return NextResponse.json({ error: "Perfil inválido" }, { status: 400 });
+  }
+
+  if (email !== undefined) {
+    const emailTrim = typeof email === "string" ? email.trim() : "";
+    if (emailTrim && !validarEmail(emailTrim)) {
+      return NextResponse.json({ error: "E-mail inválido" }, { status: 400 });
+    }
+  }
+
+  let telefoneSalvo: string | null | undefined;
+  if (telefone !== undefined) {
+    const tel = normalizarTelefoneOpcional(telefone);
+    if (!tel.ok) {
+      return NextResponse.json({ error: tel.error }, { status: 400 });
+    }
+    telefoneSalvo = tel.valor;
+  }
+
+  const existente = await prisma.usuario.findUnique({
+    where: { id },
+    select: { perfil: true },
+  });
+
+  if (!existente) {
+    return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
   }
 
   const usuario = await prisma.usuario.update({
@@ -27,9 +55,30 @@ export async function PUT(
       ...(perfil !== undefined && { perfil }),
       ...(ativo !== undefined && { ativo }),
       ...(senha && { senhaHash: await hashSenha(senha) }),
+      ...(email !== undefined && {
+        email: typeof email === "string" && email.trim() ? email.trim() : null,
+      }),
+      ...(telefoneSalvo !== undefined && { telefone: telefoneSalvo }),
     },
-    select: { id: true, login: true, nome: true, perfil: true, ativo: true },
+    select: {
+      id: true,
+      login: true,
+      nome: true,
+      email: true,
+      telefone: true,
+      perfil: true,
+      ativo: true,
+    },
   });
+
+  const perfilFinal = (perfil ?? existente.perfil) as Perfil;
+  if (perfilFinal === Perfil.VISITANTE && Array.isArray(obraIds)) {
+    const obrasValidas = await prisma.obra.findMany({
+      where: { id: { in: obraIds }, ativa: true },
+      select: { id: true },
+    });
+    await sincronizarObrasVisitante(id, obrasValidas.map((o) => o.id));
+  }
 
   return NextResponse.json(usuario);
 }

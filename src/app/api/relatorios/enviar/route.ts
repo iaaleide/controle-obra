@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { exigirAcessoObra } from "@/lib/acesso-obra";
 import { temPermissao } from "@/lib/permissions";
-import { gerarRelatorioSemanal, gerarRelatorioPeriodo } from "@/lib/relatorio";
+import {
+  gerarRelatorioSemanal,
+  gerarRelatorioPeriodo,
+  resolverIncluirSemPresenca,
+} from "@/lib/relatorio";
 import { textoRelatorioWhatsApp } from "@/lib/pdf";
 import { enviarRelatorioEmail } from "@/lib/email";
 import { paraWhatsApp } from "@/lib/telefone";
@@ -14,10 +19,17 @@ export async function POST(request: Request) {
 
   const { obraId, tipo, destinatario, dataInicio, dataFim, incluirSemPresenca } =
     await request.json();
-  const opcoes = { incluirSemPresenca: !!incluirSemPresenca };
+  const opcoes = {
+    incluirSemPresenca: resolverIncluirSemPresenca(session.perfil, incluirSemPresenca),
+  };
 
   if (!obraId || !tipo) {
     return NextResponse.json({ error: "obraId e tipo são obrigatórios" }, { status: 400 });
+  }
+
+  const acesso = await exigirAcessoObra(session.id, session.perfil, obraId);
+  if (!acesso.ok) {
+    return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
   const relatorio =

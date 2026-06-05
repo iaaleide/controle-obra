@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { exigirAcessoObra } from "@/lib/acesso-obra";
 import { temPermissao } from "@/lib/permissions";
-import { gerarRelatorioSemanal, gerarRelatorioPeriodo } from "@/lib/relatorio";
-import { gerarPdfRelatorio } from "@/lib/pdf";
+import {
+  gerarRelatorioSemanal,
+  gerarRelatorioPeriodo,
+  resolverIncluirSemPresenca,
+} from "@/lib/relatorio";
+import { gerarPdfRelatorio } from "@/lib/pdf-gerar";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -14,10 +19,18 @@ export async function GET(request: Request) {
   const obraId = searchParams.get("obraId");
   const dataInicio = searchParams.get("dataInicio");
   const dataFim = searchParams.get("dataFim");
-  const incluirSemPresenca = searchParams.get("incluirSemPresenca") === "true";
+  const incluirSemPresenca = resolverIncluirSemPresenca(
+    session.perfil,
+    searchParams.get("incluirSemPresenca")
+  );
 
   if (!obraId) {
     return NextResponse.json({ error: "obraId é obrigatório" }, { status: 400 });
+  }
+
+  const acesso = await exigirAcessoObra(session.id, session.perfil, obraId);
+  if (!acesso.ok) {
+    return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
   const relatorio =
@@ -34,7 +47,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });
   }
 
-  const pdf = gerarPdfRelatorio(relatorio);
+  let pdf: Buffer;
+  try {
+    pdf = gerarPdfRelatorio(relatorio);
+  } catch (err) {
+    console.error("Erro ao gerar PDF:", err);
+    return NextResponse.json({ error: "Erro ao gerar PDF" }, { status: 500 });
+  }
 
   return new NextResponse(new Uint8Array(pdf), {
     headers: {

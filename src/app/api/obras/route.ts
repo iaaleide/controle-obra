@@ -1,16 +1,30 @@
 import { NextResponse } from "next/server";
+import { Perfil } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
 
 export async function GET() {
   const session = await getSession();
-  if (!session || !temPermissao(session.perfil, "ver_obras")) {
+  if (!session) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
+
+  const podeVerTodas = temPermissao(session.perfil, "ver_obras");
+  const podeVerAlocadas =
+    session.perfil === Perfil.VISITANTE && temPermissao(session.perfil, "ver_relatorios");
+
+  if (!podeVerTodas && !podeVerAlocadas) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
   const obras = await prisma.obra.findMany({
-    where: { ativa: true },
+    where: {
+      ativa: true,
+      ...(podeVerAlocadas && !podeVerTodas
+        ? { visitantes: { some: { usuarioId: session.id } } }
+        : {}),
+    },
     include: { _count: { select: { alocacoes: true } } },
     orderBy: { nome: "asc" },
   });

@@ -1,5 +1,10 @@
 import nodemailer from "nodemailer";
 
+export function validarEmail(valor: string): boolean {
+  if (!valor) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor.trim());
+}
+
 const RECOVERY_EMAILS = [
   process.env.RECOVERY_EMAIL_1 || "atomica.eng@gmail.com",
   process.env.RECOVERY_EMAIL_2 || "ia.aleide@gmail.com",

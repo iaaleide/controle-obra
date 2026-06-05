@@ -1,3 +1,4 @@
+import { Perfil } from "@prisma/client";
 import { prisma } from "./prisma";
 import type { RelatorioSemanal, RelatorioLinha } from "./pdf";
 
@@ -25,7 +26,18 @@ function montarRelatorio(
     periodo,
     linhas: linhasFiltradas,
     totalPresencas: linhasFiltradas.reduce((acc, l) => acc + l.diasTrabalhados, 0),
+    incluirSemPresenca,
   };
+}
+
+export function parseIncluirSemPresenca(value: unknown): boolean {
+  return value === true || value === "true";
+}
+
+/** Visitante só vê quem teve presença — ignora pedido de incluir ausentes. */
+export function resolverIncluirSemPresenca(perfil: Perfil, value: unknown): boolean {
+  if (perfil === Perfil.VISITANTE) return false;
+  return parseIncluirSemPresenca(value);
 }
 
 function inicioSemana(data: Date): Date {
@@ -48,6 +60,47 @@ function formatarData(d: Date): string {
   return d.toLocaleDateString("pt-BR");
 }
 
+function filtroPresencaPeriodo(obraId: string, inicio: Date, fim: Date) {
+  return {
+    obraId,
+    presente: true,
+    data: { gte: inicio, lte: fim },
+  };
+}
+
+async function buscarFuncionariosRelatorio(
+  obraId: string,
+  inicio: Date,
+  fim: Date,
+  incluirSemPresenca: boolean
+) {
+  const presencaFiltro = filtroPresencaPeriodo(obraId, inicio, fim);
+
+  const where = incluirSemPresenca
+    ? {
+        obras: { some: { obraId } },
+        OR: [
+          { ativo: true },
+          { presencas: { some: presencaFiltro } },
+        ],
+      }
+    : {
+        obras: { some: { obraId } },
+        presencas: { some: presencaFiltro },
+      };
+
+  return prisma.funcionario.findMany({
+    where,
+    include: {
+      presencas: {
+        where: presencaFiltro,
+        orderBy: { data: "asc" },
+      },
+    },
+    orderBy: { nome: "asc" },
+  });
+}
+
 export async function gerarRelatorioSemanal(
   obraId: string,
   referencia?: Date,
@@ -61,34 +114,12 @@ export async function gerarRelatorioSemanal(
   const inicio = inicioSemana(ref);
   const fim = fimSemana(inicio);
 
-  const funcionarios = await prisma.funcionario.findMany({
-    where: {
-      obras: { some: { obraId } },
-      OR: [
-        { ativo: true },
-        {
-          presencas: {
-            some: {
-              obraId,
-              presente: true,
-              data: { gte: inicio, lte: fim },
-            },
-          },
-        },
-      ],
-    },
-    include: {
-      presencas: {
-        where: {
-          obraId,
-          presente: true,
-          data: { gte: inicio, lte: fim },
-        },
-        orderBy: { data: "asc" },
-      },
-    },
-    orderBy: { nome: "asc" },
-  });
+  const funcionarios = await buscarFuncionariosRelatorio(
+    obraId,
+    inicio,
+    fim,
+    incluirSemPresenca
+  );
 
   const linhas: RelatorioLinha[] = funcionarios.map((f) => ({
     funcionario: f.nome,
@@ -115,34 +146,12 @@ export async function gerarRelatorioPeriodo(
   const obra = await prisma.obra.findUnique({ where: { id: obraId } });
   if (!obra) return null;
 
-  const funcionarios = await prisma.funcionario.findMany({
-    where: {
-      obras: { some: { obraId } },
-      OR: [
-        { ativo: true },
-        {
-          presencas: {
-            some: {
-              obraId,
-              presente: true,
-              data: { gte: dataInicio, lte: dataFim },
-            },
-          },
-        },
-      ],
-    },
-    include: {
-      presencas: {
-        where: {
-          obraId,
-          presente: true,
-          data: { gte: dataInicio, lte: dataFim },
-        },
-        orderBy: { data: "asc" },
-      },
-    },
-    orderBy: { nome: "asc" },
-  });
+  const funcionarios = await buscarFuncionariosRelatorio(
+    obraId,
+    dataInicio,
+    dataFim,
+    incluirSemPresenca
+  );
 
   const linhas: RelatorioLinha[] = funcionarios.map((f) => ({
     funcionario: f.nome,

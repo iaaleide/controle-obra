@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
-import { Check, ArrowLeft, User } from "lucide-react";
+import { Check, ArrowLeft, User, Trash2 } from "lucide-react";
+import { temPermissao } from "@/lib/permissions";
 
 interface Obra {
   id: string;
@@ -45,6 +47,7 @@ interface HistoricoItem {
 type Passo = "funcionario" | "obra" | "alocar" | "presenca";
 
 export default function PresencaPage() {
+  const router = useRouter();
   const [passo, setPasso] = useState<Passo>("funcionario");
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [obras, setObras] = useState<Obra[]>([]);
@@ -64,6 +67,9 @@ export default function PresencaPage() {
   const [presencaExistente, setPresencaExistente] = useState<PresencaRegistro | null>(null);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [salvando, setSalvando] = useState(false);
+  const [limpando, setLimpando] = useState(false);
+  const [limparObraId, setLimparObraId] = useState("");
+  const [mensagemLimpar, setMensagemLimpar] = useState("");
   const [mensagem, setMensagem] = useState("");
 
   const podeRegistrar = user?.perfil === "ADMIN" || user?.perfil === "MESTRE";
@@ -77,8 +83,15 @@ export default function PresencaPage() {
       fetch("/api/auth/me"),
       fetch("/api/funcionarios"),
     ]);
-    setObras(await resObras.json());
-    setUser(await resUser.json());
+    const listaObras = await resObras.json();
+    setObras(listaObras);
+    if (listaObras[0] && !limparObraId) setLimparObraId(listaObras[0].id);
+    const userData = await resUser.json();
+    if (userData.perfil === "VISITANTE") {
+      router.replace("/dashboard/relatorios");
+      return;
+    }
+    setUser(userData);
     setFuncionarios(await resFunc.json());
   }
 
@@ -254,6 +267,37 @@ export default function PresencaPage() {
   const filtrados = funcionarios.filter((f) =>
     f.nome.toLowerCase().includes(busca.toLowerCase())
   );
+
+  const podeLimparRegistros = user ? temPermissao(user.perfil, "limpar_registros") : false;
+
+  async function limparRegistros() {
+    const obra = obras.find((o) => o.id === limparObraId);
+    const escopo = limparObraId && obra ? `da obra "${obra.nome}"` : "de TODAS as obras";
+
+    const confirmado = window.confirm(
+      `Tem certeza que deseja limpar todos os registros de presença ${escopo}?\n\nIsso apaga os registros e o histórico de alterações. Esta ação não pode ser desfeita.`
+    );
+    if (!confirmado) return;
+
+    setMensagemLimpar("");
+    setLimpando(true);
+
+    try {
+      const res = await fetch("/api/presencas/limpar", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ obraId: limparObraId || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMensagemLimpar(data.message);
+      voltarInicio();
+    } catch (e) {
+      setMensagemLimpar(e instanceof Error ? e.message : "Erro ao limpar registros");
+    } finally {
+      setLimpando(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -484,6 +528,47 @@ export default function PresencaPage() {
           </>
         )}
       </Card>
+
+      {podeLimparRegistros && (
+        <Card title="Administração">
+          <p className="mb-3 text-sm text-slate-500">
+            Remove registros de presença e histórico de alterações. Somente administrador.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                Escopo da limpeza
+              </label>
+              <select
+                value={limparObraId}
+                onChange={(e) => setLimparObraId(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+              >
+                <option value="">Todas as obras</option>
+                {obras.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {mensagemLimpar && (
+              <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                {mensagemLimpar}
+              </p>
+            )}
+            <Button
+              variant="danger"
+              onClick={limparRegistros}
+              loading={limpando}
+              fullWidth
+            >
+              <Trash2 className="h-4 w-4" />
+              Limpar registros
+            </Button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

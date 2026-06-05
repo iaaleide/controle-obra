@@ -11,6 +11,7 @@ import {
   Menu,
   Users,
   UserCog,
+  Eye,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -49,6 +50,12 @@ const navItems = [
     label: "Usuários",
     icon: UserCog,
     permissao: "gerenciar_usuarios" as const,
+  },
+  {
+    href: "/dashboard/visitantes",
+    label: "Visitantes",
+    icon: Eye,
+    permissao: "alocar_obras_visitante" as const,
   },
 ];
 

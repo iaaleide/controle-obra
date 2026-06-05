@@ -15,7 +15,10 @@ export type Permissao =
   | "exportar_pdf"
   | "enviar_relatorio"
   | "gerenciar_usuarios"
-  | "alterar_senha";
+  | "alterar_senha"
+  | "editar_contato"
+  | "limpar_registros"
+  | "alocar_obras_visitante";
 
 const PERMISSOES: Record<Perfil, Permissao[]> = {
   ADMIN: [
@@ -34,6 +37,9 @@ const PERMISSOES: Record<Perfil, Permissao[]> = {
     "enviar_relatorio",
     "gerenciar_usuarios",
     "alterar_senha",
+    "editar_contato",
+    "limpar_registros",
+    "alocar_obras_visitante",
   ],
   MESTRE: [
     "ver_dashboard",
@@ -48,14 +54,15 @@ const PERMISSOES: Record<Perfil, Permissao[]> = {
     "exportar_pdf",
     "enviar_relatorio",
     "alterar_senha",
+    "editar_contato",
+    "alocar_obras_visitante",
   ],
   VISITANTE: [
     "ver_dashboard",
-    "ver_funcionarios",
-    "ver_obras",
-    "ver_presenca",
     "ver_relatorios",
     "exportar_pdf",
+    "enviar_relatorio",
+    "editar_contato",
   ],
 };
 
@@ -86,7 +93,8 @@ export function descricaoPerfil(perfil: Perfil): string {
     ADMIN: "Acesso total — cadastra e altera todos os dados",
     MESTRE:
       "Cadastra funcionários, obras e presença; pode corrigir dias já registrados (fica no histórico)",
-    VISITANTE: "Somente visualização — resumo semanal e exportação PDF",
+    VISITANTE:
+      "Visualiza e exporta relatórios apenas das obras liberadas para você (PDF, e-mail e WhatsApp)",
   };
   return descricoes[perfil];
 }

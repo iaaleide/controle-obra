@@ -24,6 +24,8 @@ model Usuario {
   login        String   @unique
   senhaHash    String
   nome         String
+  email        String?
+  telefone     String?
   perfil       Perfil   @default(VISITANTE)
   ativo        Boolean  @default(true)
   criadoEm     DateTime @default(now())
@@ -31,6 +33,7 @@ model Usuario {
 
   resetTokens        PasswordReset[]
   historicoPresencas PresencaHistorico[]
+  obrasAlocadas      UsuarioObra[]
 }
 
 model Obra {
@@ -42,8 +45,21 @@ model Obra {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  alocacoes FuncionarioObra[]
-  presencas Presenca[]
+  alocacoes  FuncionarioObra[]
+  presencas  Presenca[]
+  visitantes UsuarioObra[]
+}
+
+model UsuarioObra {
+  usuarioId String
+  obraId    String
+  criadoEm  DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  obra    Obra    @relation(fields: [obraId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, obraId])
+  @@index([obraId])
 }
 
 model Funcionario {

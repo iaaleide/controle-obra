@@ -10,9 +10,11 @@ Sistema web de controle de presença de funcionários em obras de construção.
 
 Funcionalidades principais:
 
-- Cadastro de **obras** e **funcionários** (um funcionário pode estar alocado em várias obras)
-- Registro e **alteração de presença** por funcionário, obra e data (com histórico arquivado)
-- **Relatórios** semanais com exportação PDF e envio por **WhatsApp**
+- Cadastro de **obras** e **funcionários** (many-to-many: um funcionário em várias obras)
+- Registro e **alteração de presença** (ADMIN/MESTRE) com histórico de auditoria
+- **Relatórios** semanais: PDF, e-mail e WhatsApp
+- **Usuários** com perfis ADMIN, MESTRE e VISITANTE
+- **Visitantes** só veem/exportam relatórios das obras liberadas para eles
 
 ---
 
@@ -20,7 +22,7 @@ Funcionalidades principais:
 
 | Recurso | URL / caminho |
 |---------|---------------|
-| Pasta local | `C:\Users\DellVostro\Projects\controle-obra` |
+| Pasta local | `C:\Users\DellVostro\projects\controle-obra` |
 | GitHub | https://github.com/iaaleide/controle-obra |
 | Produção (Vercel) | https://controle-obra-khaki.vercel.app |
 | Login padrão | `atomica` / `atomica` (perfil **ADMIN**) |
@@ -38,8 +40,8 @@ Funcionalidades principais:
 | Auth | JWT + Supabase SSR (`@supabase/ssr`) |
 | UI | React 19, Tailwind CSS 4 |
 | Deploy | Vercel |
-| PDF | jsPDF + jspdf-autotable |
-| E-mail | Nodemailer (recuperação de senha) |
+| PDF | jsPDF + jspdf-autotable + fonte DejaVu embutida |
+| E-mail | Nodemailer |
 
 ---
 
@@ -56,230 +58,180 @@ Funcionalidades principais:
 
 | Ambiente | Host / porta | Uso |
 |----------|--------------|-----|
-| **Local** (`.env`) | `db.uqfkczlgfzjfrglfweqw.supabase.co:5432` | Conexão direta (`DATABASE_URL` e `DIRECT_URL`) |
-| **Vercel** (`DATABASE_URL`) | `aws-1-sa-east-1.pooler.supabase.com:6543` | Transaction pooler — usar **aws-1**, **NÃO aws-0** |
-
-### Arquivos de referência
-
-- `.env.example` — template com todas as variáveis necessárias
-- `scripts/push-env-vercel.mjs` — sincroniza variáveis do `.env` local para a Vercel
-- `SUPABASE.md` — documentação adicional do Supabase
-- `supabase/schema.sql` — schema SQL de referência
-- `supabase/migrations/presenca-historico.sql` — migração manual da tabela de histórico
+| **Local** (`.env`) | `db.uqfkczlgfzjfrglfweqw.supabase.co:5432` | `DATABASE_URL` e `DIRECT_URL` |
+| **Vercel** (`DATABASE_URL`) | `aws-1-sa-east-1.pooler.supabase.com:6543` | Pooler **aws-1** (não aws-0) |
 
 ---
 
 ## Como rodar localmente
 
 ```powershell
-cd C:\Users\DellVostro\Projects\controle-obra
+cd C:\Users\DellVostro\projects\controle-obra
 npm install
-npm run db:setup
+npm run db:push
 npm run dev
 ```
 
-O app sobe em http://localhost:3000.
-
-### Scripts úteis (`package.json`)
+App em http://localhost:3000. Login: `atomica` / `atomica`.
 
 | Comando | Descrição |
 |---------|-----------|
-| `npm run dev` | Servidor de desenvolvimento |
-| `npm run build` | Build de produção (gera Prisma + Next) |
-| `npm run db:setup` | `prisma db push` + seed (`prisma/seed.ts`) |
-| `npm run db:push` | Aplica schema Prisma ao banco |
-| `npm run db:seed` | Popula dados iniciais (usuário `atomica`, etc.) |
-| `npm run db:status` | Inspeciona schema atual do banco |
+| `npm run dev` | Desenvolvimento |
+| `npm run build` | Build produção |
+| `npm run db:push` | Aplica schema Prisma |
+| `npm run db:seed` | Seed (usuário atomica) |
+| `npx vercel --prod --yes` | Deploy produção |
 
 ---
 
-## Funcionalidades principais
+## Modelos Prisma (principais)
 
-### 1. Funcionários em várias obras
-
-- Modelo `FuncionarioObra` (many-to-many) em `prisma/schema.prisma`
-- Tela: `/dashboard/funcionarios`
-- API: `POST /api/funcionarios/[id]/alocar` para vincular funcionário a obra
-
-### 2. Presença em 4 passos
-
-- Tela: `/dashboard/presenca`
-- Fluxo: selecionar funcionário → escolher obra + data → alocar à obra se necessário → registrar ou **alterar** presença
-- API: `GET/POST /api/presencas`
-- Perfis **ADMIN** e **MESTRE** podem registrar e alterar dias já marcados
-- Cada criação ou alteração gera registro em `PresencaHistorico` (quem fez, quando, valores anteriores)
-- Consulta do histórico na própria tela de presença e via `GET /api/presencas/historico`
-
-### 3. Telefone +55 e WhatsApp
-
-- Normalização e formatação: `src/lib/telefone.ts`
-- Componente de input: `src/components/ui/TelefoneBrasilInput.tsx`
-- Relatórios com link WhatsApp: `src/lib/relatorio.ts`, `src/app/api/relatorios/enviar/route.ts`
-
-### 4. Histórico de presença (auditoria)
-
-- Modelo `PresencaHistorico` em `prisma/schema.prisma` (ações `CRIACAO` e `ALTERACAO`)
-- Lógica: `src/lib/presenca-historico.ts`
-- API: `GET /api/presencas/historico?presencaId=...` ou `?funcionarioId=...&data=...`
-- Visível para quem tem `ver_presenca` (ADMIN, MESTRE e VISITANTE)
-
-### 5. Exclusão soft (somente ADMIN)
-
-- Campo `ativo = false` em `Funcionario` (não remove do banco)
-- Confirmação na UI antes de desativar
-- Histórico de presença preservado nos relatórios
-- Apenas perfil **ADMIN** pode desativar
+```
+Usuario          # login, senhaHash, nome, email?, telefone?, perfil, ativo
+Obra             # nome, endereco, descricao, ativa
+Funcionario      # nome, cargo, telefone, ativo
+FuncionarioObra  # funcionarioId + obraId (many-to-many)
+UsuarioObra      # usuarioId + obraId — obras liberadas para VISITANTE
+Presenca         # funcionarioId + data (unique), obraId, presente, observacao
+PresencaHistorico # auditoria CRIACAO/ALTERACAO
+```
 
 ---
 
-## Permissões
-
-Definidas em `src/lib/permissions.ts`:
+## Permissões (`src/lib/permissions.ts`)
 
 | Perfil | Pode fazer |
 |--------|------------|
-| **ADMIN** | Tudo: cadastrar, editar, excluir (soft), gerenciar usuários, relatórios |
-| **MESTRE** | Cadastrar funcionários, obras e presença; **alterar** presença já registrada; **não** edita funcionários/obras nem exclui |
-| **VISITANTE** | Apenas visualizar dashboard, listas e relatórios |
+| **ADMIN** | Tudo: usuários, obras, funcionários, presença, relatórios, limpar registros, alocar obras a visitantes |
+| **MESTRE** | Cadastrar funcionários/obras/presença; alterar presença; relatórios; alocar obras a visitantes; minha conta |
+| **VISITANTE** | Só **relatórios** das obras liberadas: carregar, PDF, e-mail, WhatsApp; minha conta. **Não** marca presença, **não** vê checkbox “quem não veio” |
 
-Middleware de proteção de rotas: `src/middleware.ts`.
+### Visitante — regras importantes
+
+- Menu: só **Início**, **Relatórios** e **Minha conta**
+- Obras filtradas por `UsuarioObra` (API + tela)
+- Relatório sempre só com quem teve ≥ 1 dia (`resolverIncluirSemPresenca` força `false`)
+- Acesso a `/dashboard/presenca` redireciona para relatórios
+
+### Liberar obras ao visitante
+
+- **ADMIN:** `/dashboard/usuarios` (criar/editar visitante) ou `/dashboard/visitantes`
+- **MESTRE:** `/dashboard/visitantes`
+- API: `PUT /api/usuarios/[id]/obras` com `{ obraIds: [...] }`
+
+---
+
+## Funcionalidades por área
+
+### Presença (`/dashboard/presenca`) — ADMIN e MESTRE
+
+- Fluxo 4 passos: funcionário → obra + data → alocar → marcar/alterar
+- Histórico de alterações na tela
+- **ADMIN:** card **Limpar registros** no final (com confirmação; por obra ou todas)
+- API: `DELETE /api/presencas/limpar`
+
+### Relatórios (`/dashboard/relatorios`)
+
+- Checkbox “Incluir quem não veio” — **só ADMIN e MESTRE**
+- Rodapé: `Desenvolvido por Atômica Engenharia®` (`RODAPE_RELATORIO` em `src/lib/pdf.ts`)
+- PDF gerado em `src/lib/pdf-gerar.ts` (fonte DejaVu em `src/lib/pdf-font-dejavu.ts` — não depender de `node_modules` na Vercel)
+- E-mail/WhatsApp com contatos pré-preenchidos de **Minha conta**
+- Ícone WhatsApp: `src/components/icons/WhatsAppIcon.tsx`
+
+### Usuários (`/dashboard/usuarios`) — só ADMIN
+
+- CRUD, soft delete, reativar
+- Campos **e-mail** e **WhatsApp** no cadastro/edição
+- Visitante: marcar **obras liberadas**
+
+### Minha conta (`/dashboard/alterar-senha`)
+
+- Todos os perfis: salvar e-mail e WhatsApp (`PATCH /api/auth/contato`)
+- ADMIN/MESTRE: alterar senha
 
 ---
 
 ## Arquivos importantes
 
-### Schema e dados
-
 ```
-prisma/schema.prisma      # Modelos: Usuario, Obra, Funcionario, FuncionarioObra, Presenca, PresencaHistorico
-prisma/seed.ts            # Dados iniciais (usuário atomica, obras de exemplo)
-```
-
-### Autenticação e permissões
-
-```
-src/lib/auth.ts           # Login JWT, sessão, findFirst (não findUnique com ativo)
-src/lib/permissions.ts    # Matriz de permissões, labels e descrições por perfil
-src/middleware.ts         # Proteção de rotas /dashboard e /api
-src/utils/supabase/       # client.ts, server.ts, middleware.ts (Supabase SSR)
+prisma/schema.prisma
+src/lib/permissions.ts
+src/lib/acesso-obra.ts          # usuarioPodeAcessarObra, sincronizarObrasVisitante
+src/lib/relatorio.ts            # resolverIncluirSemPresenca
+src/lib/pdf.ts                  # tipos, RODAPE_RELATORIO, texto WhatsApp
+src/lib/pdf-gerar.ts            # geração PDF (server-only)
+src/lib/pdf-font-dejavu.ts      # fonte base64 (gerar: node scripts/embed-pdf-font.mjs)
+src/lib/usuario-contato.ts      # validação email/telefone
+src/lib/telefone.ts
+src/middleware.ts
 ```
 
-### Domínio
+### Páginas dashboard
 
 ```
-src/lib/telefone.ts           # Formatação telefone Brasil (+55)
-src/lib/presenca-historico.ts # Arquivamento de criação/alteração de presença
-src/lib/relatorio.ts          # Geração de relatório semanal + link WhatsApp
-src/lib/pdf.ts                # Exportação PDF
-src/lib/prisma.ts             # Cliente Prisma singleton
+/dashboard                  # cards por permissão
+/dashboard/presenca         # ADMIN, MESTRE
+/dashboard/funcionarios     # ADMIN, MESTRE
+/dashboard/obras            # ADMIN, MESTRE
+/dashboard/relatorios       # todos (visitante: obras filtradas)
+/dashboard/usuarios         # ADMIN
+/dashboard/visitantes       # ADMIN, MESTRE — alocar obras a visitantes
+/dashboard/alterar-senha    # Minha conta (todos)
 ```
 
-### Páginas (dashboard)
+### APIs principais
 
 ```
-src/app/dashboard/page.tsx              # Home do dashboard
-src/app/dashboard/funcionarios/page.tsx # CRUD funcionários + alocação obras
-src/app/dashboard/obras/page.tsx        # CRUD obras
-src/app/dashboard/presenca/page.tsx     # Fluxo 4 passos + histórico de alterações
-src/app/dashboard/relatorios/page.tsx   # Relatórios + PDF + WhatsApp
-src/app/dashboard/usuarios/page.tsx     # Gerenciar usuários (ADMIN)
-src/app/dashboard/alterar-senha/page.tsx
-src/app/login/page.tsx
+/api/auth/me, /api/auth/contato
+/api/obras                  # GET filtra por UsuarioObra se VISITANTE
+/api/presencas, /api/presencas/limpar
+/api/relatorios/semanal, /pdf, /enviar  # checam acesso à obra
+/api/usuarios, /api/usuarios/visitantes, /api/usuarios/[id]/obras
 ```
-
-### API routes
-
-```
-src/app/api/auth/           # login, logout, me, alterar-senha, recuperar-senha
-src/app/api/funcionarios/   # CRUD + [id]/alocar
-src/app/api/obras/          # CRUD obras
-src/app/api/presencas/      # Listar, registrar e alterar presença
-src/app/api/presencas/historico/  # Consultar histórico arquivado
-src/app/api/relatorios/     # semanal, pdf, enviar (WhatsApp)
-src/app/api/usuarios/       # Gerenciar usuários
-```
-
-### Scripts e deploy
-
-```
-scripts/push-env-vercel.mjs           # Sync .env → Vercel
-scripts/migrate-funcionario-obras.mjs # Migração many-to-many
-scripts/sync-vercel-env.ps1           # Alternativa PowerShell
-DEPLOY-VERCEL.md                      # Guia de deploy
-vercel.json
-.env.example
-```
-
-### Componentes UI
-
-```
-src/components/ui/TelefoneBrasilInput.tsx
-src/components/ui/Button.tsx, Input.tsx, Card.tsx, Badge.tsx
-src/components/layout/AppShell.tsx, PerfilBanner.tsx
-```
-
----
-
-## Git — estado atual
-
-- Branch: `main`, sincronizada com `origin/main`
-- Deploy de produção: **feito**
-
-### Commits recentes relevantes
-
-| Hash | Descrição |
-|------|-----------|
-| `58a5ad2` | Melhorar presença, telefone Brasil (+55) e fluxo WhatsApp |
-| `69cb09f` | Permitir exclusão soft de funcionários apenas para ADMIN, preservando histórico |
-| *(pendente)* | MESTRE pode alterar presença; histórico arquivado em `PresencaHistorico` |
 
 ---
 
 ## Problemas resolvidos
 
-| Problema | Causa | Solução |
-|----------|-------|---------|
-| Erro interno no login (Vercel) | Pooler incorreto / conexão IPv4 | Usar pooler `aws-1-sa-east-1.pooler.supabase.com:6543` |
-| `tenant not found` | Host `aws-0` em vez de `aws-1` | Trocar para **aws-1-sa-east-1** no `DATABASE_URL` da Vercel |
-| Falha de autenticação com `findUnique` | Filtro `ativo: true` em `findUnique` não suportado como esperado | Trocar para `findFirst` em `src/lib/auth.ts` |
+| Problema | Solução |
+|----------|---------|
+| Login Vercel / `tenant not found` | Pooler `aws-1-sa-east-1`, `findFirst` em auth |
+| PDF erro 500 (ENOENT fonte) | Fonte DejaVu embutida em `pdf-font-dejavu.ts` |
+| PDF rodapé `(R)` / página em branco | `Atômica Engenharia®` + margens autoTable corrigidas |
+| Visitante vendo todas as obras | Modelo `UsuarioObra` + filtro API/UI |
+| Contatos atomica não salvavam | Validação telefone + edição em usuários/minha conta |
 
 ---
 
 ## Deploy produção
 
 ```powershell
-cd C:\Users\DellVostro\Projects\controle-obra
+cd C:\Users\DellVostro\projects\controle-obra
 npm run db:push
-node scripts/push-env-vercel.mjs
+git add -A
+git commit -m "sua mensagem"
+git push origin main
 npx vercel --prod --yes
 ```
-
-Confirme que `DATABASE_URL` na Vercel aponta para `aws-1-sa-east-1.pooler.supabase.com:6543`.
-
-Após mudanças no `schema.prisma` (ex.: `PresencaHistorico`), rode `npm run db:push` **antes** do deploy para criar/atualizar tabelas no Supabase.
 
 ---
 
 ## Para retomar numa nova janela
 
-1. Abrir pasta no Cursor: `C:\Users\DellVostro\Projects\controle-obra`
-2. Verificar se `.env` existe (copiar de `.env.example` se necessário) e preencher:
-   - `DATABASE_URL` / `DIRECT_URL` com senha `atomicaadm2402`
-   - `JWT_SECRET`, chaves Supabase, SMTP (se for testar e-mail)
-3. Rodar `npm install` (se `node_modules` não existir)
-4. Rodar `npm run dev` e acessar http://localhost:3000
+1. Abrir `C:\Users\DellVostro\projects\controle-obra` no Cursor
+2. Ler este arquivo (`CONTEXTO-PROJETO.md`)
+3. `.env` a partir de `.env.example` se necessário
+4. `npm install` → `npm run db:push` → `npm run dev`
 5. Login: `atomica` / `atomica`
-6. Ler este arquivo e, se necessário, `PROXIMOS-PASSOS.md` / `DEPLOY-VERCEL.md`
 
 ---
 
 ## Possíveis próximos passos
 
-- [ ] Filtro de funcionários inativos na listagem (`/dashboard/funcionarios`)
-- [ ] Reativar funcionário desativado (toggle `ativo = true`, só ADMIN)
-- [ ] Testes de API para validar permissões por perfil (MESTRE altera presença, não edita funcionário/obra)
-- [ ] Melhorar UX mobile na tela de presença (`/dashboard/presenca`)
+- [ ] Filtro/reativar funcionários inativos (`/dashboard/funcionarios`)
+- [ ] Testes de API por perfil
+- [ ] UX mobile na tela de presença
 
 ---
 
-*Última atualização: junho/2026 — branch `main`, deploy Vercel ativo.*
+*Última atualização: junho/2026 — visitante restrito, contatos, PDF Atômica®, limpar registros (ADMIN).*
