@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface Obra {
   id: string;
@@ -36,6 +36,7 @@ export default function FuncionariosPage() {
   const [telefone, setTelefone] = useState("");
   const [obraIds, setObraIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [erro, setErro] = useState("");
 
   const podeCadastrar = user?.perfil === "ADMIN" || user?.perfil === "MESTRE";
@@ -117,6 +118,26 @@ export default function FuncionariosPage() {
     setLoading(false);
   }
 
+  async function excluir(f: Funcionario) {
+    const msg = `Tem certeza que deseja excluir ${f.nome}? O histórico de presença será mantido.`;
+    if (!window.confirm(msg)) return;
+
+    setExcluindoId(f.id);
+    setErro("");
+
+    const res = await fetch(`/api/funcionarios/${f.id}`, { method: "DELETE" });
+
+    if (res.ok) {
+      if (editando?.id === f.id) limparForm();
+      carregarFuncionarios();
+    } else {
+      const data = await res.json();
+      setErro(data.error || "Erro ao excluir");
+    }
+
+    setExcluindoId(null);
+  }
+
   return (
     <div className="space-y-4">
       <Card
@@ -187,6 +208,10 @@ export default function FuncionariosPage() {
           </form>
         )}
 
+        {erro && !showForm && (
+          <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{erro}</p>
+        )}
+
         <div className="space-y-2">
           {funcionarios.map((f) => (
             <div
@@ -203,12 +228,23 @@ export default function FuncionariosPage() {
                 </p>
               </div>
               {podeEditar && (
-                <button
-                  onClick={() => abrirEdicao(f)}
-                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => abrirEdicao(f)}
+                    className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+                    title="Editar"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => excluir(f)}
+                    disabled={excluindoId === f.id}
+                    className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    title="Excluir"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               )}
             </div>
           ))}

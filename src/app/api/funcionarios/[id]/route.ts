@@ -70,3 +70,32 @@ export async function PUT(
 
   return NextResponse.json(formatFuncionario(funcionario));
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session || !temPermissao(session.perfil, "editar_funcionario")) {
+    return NextResponse.json({ error: "Sem permissão para excluir" }, { status: 403 });
+  }
+
+  const { id } = await params;
+
+  const existente = await prisma.funcionario.findUnique({ where: { id } });
+  if (!existente) {
+    return NextResponse.json({ error: "Funcionário não encontrado" }, { status: 404 });
+  }
+
+  if (!existente.ativo) {
+    return NextResponse.json({ error: "Funcionário já está inativo" }, { status: 400 });
+  }
+
+  const funcionario = await prisma.funcionario.update({
+    where: { id },
+    data: { ativo: false },
+    include: includeObras,
+  });
+
+  return NextResponse.json(formatFuncionario(funcionario));
+}

@@ -33,7 +33,21 @@ export async function gerarRelatorioSemanal(
   const fim = fimSemana(inicio);
 
   const funcionarios = await prisma.funcionario.findMany({
-    where: { ativo: true, obras: { some: { obraId } } },
+    where: {
+      obras: { some: { obraId } },
+      OR: [
+        { ativo: true },
+        {
+          presencas: {
+            some: {
+              obraId,
+              presente: true,
+              data: { gte: inicio, lte: fim },
+            },
+          },
+        },
+      ],
+    },
     include: {
       presencas: {
         where: {
@@ -73,7 +87,21 @@ export async function gerarRelatorioPeriodo(
   if (!obra) return null;
 
   const funcionarios = await prisma.funcionario.findMany({
-    where: { ativo: true, obras: { some: { obraId } } },
+    where: {
+      obras: { some: { obraId } },
+      OR: [
+        { ativo: true },
+        {
+          presencas: {
+            some: {
+              obraId,
+              presente: true,
+              data: { gte: dataInicio, lte: dataFim },
+            },
+          },
+        },
+      ],
+    },
     include: {
       presencas: {
         where: {
