@@ -80,3 +80,13 @@ export function corPerfil(perfil: Perfil): string {
   };
   return cores[perfil];
 }
+
+export function descricaoPerfil(perfil: Perfil): string {
+  const descricoes: Record<Perfil, string> = {
+    ADMIN: "Acesso total — cadastra e altera todos os dados",
+    MESTRE:
+      "Cadastra funcionários, obras e presença; pode corrigir dias já registrados (fica no histórico)",
+    VISITANTE: "Somente visualização — resumo semanal e exportação PDF",
+  };
+  return descricoes[perfil];
+}

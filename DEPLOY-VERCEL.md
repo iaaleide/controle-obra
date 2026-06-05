@@ -68,12 +68,20 @@ Adicione **todas** estas variáveis (copie os valores do seu `.env` local):
 
 ## Parte 3 — Banco de dados
 
-As tabelas **já existem** no Supabase (você criou pelo SQL Editor). O admin `atomica` também já está lá.
+Após alterações no `prisma/schema.prisma`, aplique o schema no Supabase **antes** de publicar:
+
+```powershell
+cd D:\controle-obra
+npm run db:push
+```
+
+Isso cria ou atualiza tabelas (ex.: `PresencaHistorico` para histórico de alterações de presença).
+
+Alternativa manual: execute `supabase/migrations/presenca-historico.sql` no SQL Editor do Supabase.
 
 Se precisar recriar o admin em produção, rode localmente:
 
 ```powershell
-cd D:\controle-obra
 npm run db:seed
 ```
 

@@ -12,7 +12,7 @@ export default async function DashboardPage() {
     {
       href: "/dashboard/presenca",
       label: "Registrar presença",
-      desc: "Marque quem trabalhou hoje",
+      desc: "Marque ou corrija quem trabalhou no dia",
       icon: CalendarCheck,
       show: temPermissao(session.perfil, "cadastrar_presenca"),
     },

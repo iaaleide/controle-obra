@@ -65,6 +65,7 @@ Funcionalidades principais:
 - `scripts/push-env-vercel.mjs` — sincroniza variáveis do `.env` local para a Vercel
 - `SUPABASE.md` — documentação adicional do Supabase
 - `supabase/schema.sql` — schema SQL de referência
+- `supabase/migrations/presenca-historico.sql` — migração manual da tabela de histórico
 
 ---
 
@@ -158,7 +159,7 @@ prisma/seed.ts            # Dados iniciais (usuário atomica, obras de exemplo)
 
 ```
 src/lib/auth.ts           # Login JWT, sessão, findFirst (não findUnique com ativo)
-src/lib/permissions.ts    # Matriz de permissões por perfil
+src/lib/permissions.ts    # Matriz de permissões, labels e descrições por perfil
 src/middleware.ts         # Proteção de rotas /dashboard e /api
 src/utils/supabase/       # client.ts, server.ts, middleware.ts (Supabase SSR)
 ```
@@ -179,7 +180,7 @@ src/lib/prisma.ts             # Cliente Prisma singleton
 src/app/dashboard/page.tsx              # Home do dashboard
 src/app/dashboard/funcionarios/page.tsx # CRUD funcionários + alocação obras
 src/app/dashboard/obras/page.tsx        # CRUD obras
-src/app/dashboard/presenca/page.tsx     # Fluxo 4 passos de presença
+src/app/dashboard/presenca/page.tsx     # Fluxo 4 passos + histórico de alterações
 src/app/dashboard/relatorios/page.tsx   # Relatórios + PDF + WhatsApp
 src/app/dashboard/usuarios/page.tsx     # Gerenciar usuários (ADMIN)
 src/app/dashboard/alterar-senha/page.tsx
@@ -192,7 +193,8 @@ src/app/login/page.tsx
 src/app/api/auth/           # login, logout, me, alterar-senha, recuperar-senha
 src/app/api/funcionarios/   # CRUD + [id]/alocar
 src/app/api/obras/          # CRUD obras
-src/app/api/presencas/      # Listar e registrar presença
+src/app/api/presencas/      # Listar, registrar e alterar presença
+src/app/api/presencas/historico/  # Consultar histórico arquivado
 src/app/api/relatorios/     # semanal, pdf, enviar (WhatsApp)
 src/app/api/usuarios/       # Gerenciar usuários
 ```
@@ -229,6 +231,7 @@ src/components/layout/AppShell.tsx, PerfilBanner.tsx
 |------|-----------|
 | `58a5ad2` | Melhorar presença, telefone Brasil (+55) e fluxo WhatsApp |
 | `69cb09f` | Permitir exclusão soft de funcionários apenas para ADMIN, preservando histórico |
+| *(pendente)* | MESTRE pode alterar presença; histórico arquivado em `PresencaHistorico` |
 
 ---
 
@@ -246,11 +249,14 @@ src/components/layout/AppShell.tsx, PerfilBanner.tsx
 
 ```powershell
 cd C:\Users\DellVostro\Projects\controle-obra
+npm run db:push
 node scripts/push-env-vercel.mjs
 npx vercel --prod --yes
 ```
 
 Confirme que `DATABASE_URL` na Vercel aponta para `aws-1-sa-east-1.pooler.supabase.com:6543`.
+
+Após mudanças no `schema.prisma` (ex.: `PresencaHistorico`), rode `npm run db:push` **antes** do deploy para criar/atualizar tabelas no Supabase.
 
 ---
 
@@ -271,7 +277,7 @@ Confirme que `DATABASE_URL` na Vercel aponta para `aws-1-sa-east-1.pooler.supaba
 
 - [ ] Filtro de funcionários inativos na listagem (`/dashboard/funcionarios`)
 - [ ] Reativar funcionário desativado (toggle `ativo = true`, só ADMIN)
-- [ ] Testes de API para validar permissões por perfil (MESTRE vs ADMIN vs VISITANTE)
+- [ ] Testes de API para validar permissões por perfil (MESTRE altera presença, não edita funcionário/obra)
 - [ ] Melhorar UX mobile na tela de presença (`/dashboard/presenca`)
 
 ---

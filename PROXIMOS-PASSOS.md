@@ -67,7 +67,7 @@ Abra no navegador ou celular: **http://localhost:3000**
 
 1. Acesse [painel do projeto](https://supabase.com/dashboard/project/vctdqymehlzxrlterhet)
 2. Menu **Table Editor**
-3. Deve aparecer: `Usuario`, `Obra`, `Funcionario`, `Presenca`, `PasswordReset`
+3. Deve aparecer: `Usuario`, `Obra`, `Funcionario`, `FuncionarioObra`, `Presenca`, `PresencaHistorico`, `PasswordReset`
 
 ---
 
