@@ -33,3 +33,51 @@ export async function PUT(
 
   return NextResponse.json(usuario);
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session || !temPermissao(session.perfil, "gerenciar_usuarios")) {
+    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+  }
+
+  const { id } = await params;
+
+  if (id === session.id) {
+    return NextResponse.json(
+      { error: "Você não pode excluir seu próprio usuário" },
+      { status: 400 }
+    );
+  }
+
+  const existente = await prisma.usuario.findUnique({ where: { id } });
+  if (!existente) {
+    return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
+  }
+
+  if (!existente.ativo) {
+    return NextResponse.json({ error: "Usuário já está inativo" }, { status: 400 });
+  }
+
+  if (existente.perfil === "ADMIN") {
+    const adminsAtivos = await prisma.usuario.count({
+      where: { perfil: "ADMIN", ativo: true },
+    });
+    if (adminsAtivos <= 1) {
+      return NextResponse.json(
+        { error: "Não é possível excluir o único administrador ativo" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const usuario = await prisma.usuario.update({
+    where: { id },
+    data: { ativo: false },
+    select: { id: true, login: true, nome: true, perfil: true, ativo: true },
+  });
+
+  return NextResponse.json(usuario);
+}

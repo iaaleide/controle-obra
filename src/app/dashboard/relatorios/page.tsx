@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
 import { Download, Mail, MessageCircle } from "lucide-react";
 import type { RelatorioSemanal } from "@/lib/pdf";
+import { RODAPE_RELATORIO } from "@/lib/pdf";
 
 interface Obra {
   id: string;
@@ -220,6 +221,10 @@ export default function RelatoriosPage() {
               </>
             )}
           </div>
+
+          <p className="mt-6 border-t border-slate-100 pt-4 text-center text-xs text-slate-400">
+            {RODAPE_RELATORIO}
+          </p>
         </Card>
       )}
 

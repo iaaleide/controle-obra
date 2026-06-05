@@ -15,6 +15,8 @@ export interface RelatorioSemanal {
   totalPresencas: number;
 }
 
+export const RODAPE_RELATORIO = "Sistema desenvolvido por Atômica Engenharia®";
+
 export function gerarPdfRelatorio(dados: RelatorioSemanal): Buffer {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -43,14 +45,16 @@ export function gerarPdfRelatorio(dados: RelatorioSemanal): Buffer {
     alternateRowStyles: { fillColor: [248, 250, 252] },
   });
 
+  const pageHeight = doc.internal.pageSize.getHeight();
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    `Gerado em ${new Date().toLocaleString("pt-BR")} — Controle Obra`,
+    `Gerado em ${new Date().toLocaleString("pt-BR")}`,
     pageWidth / 2,
-    doc.internal.pageSize.getHeight() - 10,
+    pageHeight - 16,
     { align: "center" }
   );
+  doc.text(RODAPE_RELATORIO, pageWidth / 2, pageHeight - 10, { align: "center" });
 
   const arrayBuffer = doc.output("arraybuffer");
   return Buffer.from(arrayBuffer);
@@ -69,5 +73,6 @@ export function textoRelatorioWhatsApp(dados: RelatorioSemanal): string {
   }
 
   texto += `\nTotal: ${dados.totalPresencas} presença(s)`;
+  texto += `\n\n${RODAPE_RELATORIO}`;
   return texto;
 }
