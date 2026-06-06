@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
@@ -18,9 +18,14 @@ export async function GET() {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const incluirInativas =
+    searchParams.get("incluirInativas") === "true" &&
+    temPermissao(session.perfil, "editar_obra");
+
   const obras = await prisma.obra.findMany({
     where: {
-      ativa: true,
+      ...(!incluirInativas ? { ativa: true } : {}),
       ...(podeVerAlocadas && !podeVerTodas
         ? { visitantes: { some: { usuarioId: session.id } } }
         : {}),

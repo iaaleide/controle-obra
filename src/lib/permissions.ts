@@ -8,6 +8,7 @@ export type Permissao =
   | "ver_obras"
   | "cadastrar_obra"
   | "editar_obra"
+  | "excluir_obra"
   | "ver_presenca"
   | "cadastrar_presenca"
   | "editar_presenca"
@@ -29,6 +30,7 @@ const PERMISSOES: Record<Perfil, Permissao[]> = {
     "ver_obras",
     "cadastrar_obra",
     "editar_obra",
+    "excluir_obra",
     "ver_presenca",
     "cadastrar_presenca",
     "editar_presenca",
@@ -47,6 +49,7 @@ const PERMISSOES: Record<Perfil, Permissao[]> = {
     "cadastrar_funcionario",
     "ver_obras",
     "cadastrar_obra",
+    "editar_obra",
     "ver_presenca",
     "cadastrar_presenca",
     "editar_presenca",
