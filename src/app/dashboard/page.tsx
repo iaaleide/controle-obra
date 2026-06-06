@@ -17,7 +17,15 @@ export default async function DashboardPage() {
   const session = await getSession();
   if (!session) return null;
 
-  const cards = [
+  type CardItem = {
+    href: string;
+    label: string;
+    desc: string;
+    icon: typeof CalendarCheck;
+    show: boolean;
+  };
+
+  const cardsGerais: CardItem[] = [
     {
       href: "/dashboard/presenca",
       label: "Registrar presença",
@@ -46,6 +54,9 @@ export default async function DashboardPage() {
       icon: FileText,
       show: temPermissao(session.perfil, "ver_relatorios"),
     },
+  ].filter((c) => c.show);
+
+  const cardsAdmin: CardItem[] = [
     {
       href: "/dashboard/custos",
       label: "Custos",
@@ -69,14 +80,8 @@ export default async function DashboardPage() {
     },
   ].filter((c) => c.show);
 
-  return (
-    <div className="space-y-4">
-      <Card>
-        <p className="text-sm text-slate-600">
-          Olá, <strong>{session.nome}</strong>
-        </p>
-      </Card>
-
+  function renderCards(cards: CardItem[]) {
+    return (
       <div className="grid gap-3 sm:grid-cols-2">
         {cards.map((card) => (
           <Link
@@ -94,6 +99,25 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <p className="text-sm text-slate-600">
+          Olá, <strong>{session.nome}</strong>
+        </p>
+      </Card>
+
+      {renderCards(cardsGerais)}
+
+      {cardsAdmin.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-slate-700">Administração</h2>
+          {renderCards(cardsAdmin)}
+        </div>
+      )}
 
       {temPermissao(session.perfil, "editar_contato") && (
         <Link
