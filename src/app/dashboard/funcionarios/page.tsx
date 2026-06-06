@@ -5,7 +5,9 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
+import { temPermissao } from "@/lib/permissions";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import type { Perfil } from "@prisma/client";
 
 interface Obra {
   id: string;
@@ -21,7 +23,7 @@ interface Funcionario {
 }
 
 interface User {
-  perfil: "ADMIN" | "MESTRE" | "VISITANTE";
+  perfil: Perfil;
 }
 
 export default function FuncionariosPage() {
@@ -39,8 +41,9 @@ export default function FuncionariosPage() {
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [erro, setErro] = useState("");
 
-  const podeCadastrar = user?.perfil === "ADMIN" || user?.perfil === "MESTRE";
-  const podeEditar = user?.perfil === "ADMIN";
+  const podeCadastrar = user ? temPermissao(user.perfil, "cadastrar_funcionario") : false;
+  const podeEditar = user ? temPermissao(user.perfil, "editar_funcionario") : false;
+  const podeExcluir = user ? temPermissao(user.perfil, "excluir_funcionario") : false;
 
   async function carregar() {
     const [resUser, resObras] = await Promise.all([
@@ -227,23 +230,27 @@ export default function FuncionariosPage() {
                     : "Sem obra alocada"}
                 </p>
               </div>
-              {podeEditar && (
+              {(podeEditar || podeExcluir) && (
                 <div className="flex gap-1">
-                  <button
-                    onClick={() => abrirEdicao(f)}
-                    className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
-                    title="Editar"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => excluir(f)}
-                    disabled={excluindoId === f.id}
-                    className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                    title="Excluir"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {podeEditar && (
+                    <button
+                      onClick={() => abrirEdicao(f)}
+                      className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+                      title="Editar"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                  {podeExcluir && (
+                    <button
+                      onClick={() => excluir(f)}
+                      disabled={excluindoId === f.id}
+                      className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      title="Excluir"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               )}
             </div>

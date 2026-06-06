@@ -5,6 +5,7 @@ export type Permissao =
   | "ver_funcionarios"
   | "cadastrar_funcionario"
   | "editar_funcionario"
+  | "excluir_funcionario"
   | "ver_obras"
   | "cadastrar_obra"
   | "editar_obra"
@@ -19,7 +20,10 @@ export type Permissao =
   | "alterar_senha"
   | "editar_contato"
   | "limpar_registros"
-  | "alocar_obras_visitante";
+  | "alocar_obras_visitante"
+  | "gerenciar_custos"
+  | "gerenciar_diario_obra"
+  | "gerenciar_ferramentas";
 
 const PERMISSOES: Record<Perfil, Permissao[]> = {
   ADMIN: [
@@ -27,6 +31,7 @@ const PERMISSOES: Record<Perfil, Permissao[]> = {
     "ver_funcionarios",
     "cadastrar_funcionario",
     "editar_funcionario",
+    "excluir_funcionario",
     "ver_obras",
     "cadastrar_obra",
     "editar_obra",
@@ -42,11 +47,15 @@ const PERMISSOES: Record<Perfil, Permissao[]> = {
     "editar_contato",
     "limpar_registros",
     "alocar_obras_visitante",
+    "gerenciar_custos",
+    "gerenciar_diario_obra",
+    "gerenciar_ferramentas",
   ],
   MESTRE: [
     "ver_dashboard",
     "ver_funcionarios",
     "cadastrar_funcionario",
+    "editar_funcionario",
     "ver_obras",
     "cadastrar_obra",
     "editar_obra",
@@ -93,9 +102,9 @@ export function corPerfil(perfil: Perfil): string {
 
 export function descricaoPerfil(perfil: Perfil): string {
   const descricoes: Record<Perfil, string> = {
-    ADMIN: "Acesso total — cadastra e altera todos os dados",
+    ADMIN: "Acesso total — cadastra, altera e exclui todos os dados",
     MESTRE:
-      "Cadastra e edita obras e presença; pode corrigir dias já registrados (fica no histórico); não exclui",
+      "Cadastra e edita funcionários, obras e presença; pode corrigir dias já registrados; não exclui",
     VISITANTE:
       "Visualiza e exporta relatórios apenas das obras liberadas para você (PDF, e-mail e WhatsApp)",
   };

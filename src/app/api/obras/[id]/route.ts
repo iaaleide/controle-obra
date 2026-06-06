@@ -13,7 +13,7 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const { nome, endereco, descricao, ativa } = await request.json();
+  const { nome, clienteNome, endereco, descricao, ativa } = await request.json();
 
   const existente = await prisma.obra.findUnique({ where: { id } });
   if (!existente) {
@@ -24,6 +24,7 @@ export async function PUT(
     where: { id },
     data: {
       ...(nome !== undefined ? { nome: nome.trim() } : {}),
+      ...(clienteNome !== undefined ? { clienteNome: clienteNome || null } : {}),
       ...(endereco !== undefined ? { endereco: endereco || null } : {}),
       ...(descricao !== undefined ? { descricao: descricao || null } : {}),
       ...(ativa !== undefined ? { ativa } : {}),

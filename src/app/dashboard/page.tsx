@@ -2,7 +2,16 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { temPermissao, labelPerfil } from "@/lib/permissions";
 import { Card } from "@/components/ui/Card";
-import { Building2, CalendarCheck, FileText, Users, UserRound } from "lucide-react";
+import {
+  Building2,
+  CalendarCheck,
+  Camera,
+  Coins,
+  FileText,
+  Users,
+  UserRound,
+  Wrench,
+} from "lucide-react";
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -19,7 +28,7 @@ export default async function DashboardPage() {
     {
       href: "/dashboard/funcionarios",
       label: "Funcionários",
-      desc: "Ver equipe da obra",
+      desc: "Ver e editar equipe da obra",
       icon: Users,
       show: temPermissao(session.perfil, "ver_funcionarios"),
     },
@@ -36,6 +45,27 @@ export default async function DashboardPage() {
       desc: "Consulta, PDF, e-mail e WhatsApp das obras liberadas",
       icon: FileText,
       show: temPermissao(session.perfil, "ver_relatorios"),
+    },
+    {
+      href: "/dashboard/custos",
+      label: "Custos",
+      desc: "Valor por cargo ou pessoa e relatório semanal",
+      icon: Coins,
+      show: temPermissao(session.perfil, "gerenciar_custos"),
+    },
+    {
+      href: "/dashboard/diario-obra",
+      label: "Diário de obra",
+      desc: "Fotos, clima e impressão por obra",
+      icon: Camera,
+      show: temPermissao(session.perfil, "gerenciar_diario_obra"),
+    },
+    {
+      href: "/dashboard/ferramentas",
+      label: "Ferramentas",
+      desc: "Cadastro e empréstimo por obra",
+      icon: Wrench,
+      show: temPermissao(session.perfil, "gerenciar_ferramentas"),
     },
   ].filter((c) => c.show);
 

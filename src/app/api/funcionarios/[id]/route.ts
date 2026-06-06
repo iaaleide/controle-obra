@@ -43,6 +43,10 @@ export async function PUT(
   const { id } = await params;
   const { nome, cargo, telefone, ativo, obraIds } = await request.json();
 
+  if (ativo !== undefined && !temPermissao(session.perfil, "excluir_funcionario")) {
+    return NextResponse.json({ error: "Sem permissão para alterar status" }, { status: 403 });
+  }
+
   const ids = Array.isArray(obraIds) ? obraIds.filter(Boolean) : null;
 
   const funcionario = await prisma.$transaction(async (tx) => {
@@ -77,7 +81,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession();
-  if (!session || !temPermissao(session.perfil, "editar_funcionario")) {
+  if (!session || !temPermissao(session.perfil, "excluir_funcionario")) {
     return NextResponse.json({ error: "Sem permissão para excluir" }, { status: 403 });
   }
 

@@ -12,6 +12,7 @@ import type { Perfil } from "@prisma/client";
 interface Obra {
   id: string;
   nome: string;
+  clienteNome: string | null;
   endereco: string | null;
   descricao: string | null;
   ativa: boolean;
@@ -29,6 +30,7 @@ export default function ObrasPage() {
   const [mostrarInativas, setMostrarInativas] = useState(false);
   const [editando, setEditando] = useState<Obra | null>(null);
   const [nome, setNome] = useState("");
+  const [clienteNome, setClienteNome] = useState("");
   const [endereco, setEndereco] = useState("");
   const [descricao, setDescricao] = useState("");
   const [loading, setLoading] = useState(false);
@@ -56,6 +58,7 @@ export default function ObrasPage() {
   function abrirEdicao(obra: Obra) {
     setEditando(obra);
     setNome(obra.nome);
+    setClienteNome(obra.clienteNome || "");
     setEndereco(obra.endereco || "");
     setDescricao(obra.descricao || "");
     setShowForm(true);
@@ -66,6 +69,7 @@ export default function ObrasPage() {
     setShowForm(false);
     setEditando(null);
     setNome("");
+    setClienteNome("");
     setEndereco("");
     setDescricao("");
     setErro("");
@@ -82,7 +86,7 @@ export default function ObrasPage() {
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, endereco, descricao }),
+      body: JSON.stringify({ nome, clienteNome, endereco, descricao }),
     });
 
     if (res.ok) {
@@ -179,6 +183,11 @@ export default function ObrasPage() {
               required
             />
             <Input
+              label="Nome do cliente"
+              value={clienteNome}
+              onChange={(e) => setClienteNome(e.target.value)}
+            />
+            <Input
               label="Endereço"
               value={endereco}
               onChange={(e) => setEndereco(e.target.value)}
@@ -222,6 +231,9 @@ export default function ObrasPage() {
                     <Badge className="bg-red-100 text-red-700">Excluída</Badge>
                   )}
                 </div>
+                {obra.clienteNome && (
+                  <p className="text-sm text-slate-500">Cliente: {obra.clienteNome}</p>
+                )}
                 {obra.endereco && <p className="text-sm text-slate-500">{obra.endereco}</p>}
                 <p className="text-xs text-slate-400">
                   {obra._count.alocacoes} funcionário(s) alocado(s)

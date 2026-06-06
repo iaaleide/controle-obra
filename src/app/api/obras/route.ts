@@ -55,14 +55,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
-  const { nome, endereco, descricao } = await request.json();
+  const { nome, clienteNome, endereco, descricao } = await request.json();
 
   if (!nome) {
     return NextResponse.json({ error: "Nome da obra é obrigatório" }, { status: 400 });
   }
 
   const obra = await prisma.obra.create({
-    data: { nome, endereco, descricao },
+    data: { nome, clienteNome: clienteNome || null, endereco, descricao },
   });
 
   return NextResponse.json(obra, { status: 201 });

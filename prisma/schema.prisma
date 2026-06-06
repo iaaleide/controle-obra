@@ -19,6 +19,11 @@ enum AcaoPresencaHistorico {
   ALTERACAO
 }
 
+enum TipoCustoFuncionario {
+  CARGO
+  PESSOA
+}
+
 model Usuario {
   id           String   @id @default(cuid())
   login        String   @unique
@@ -39,15 +44,18 @@ model Usuario {
 model Obra {
   id           String   @id @default(cuid())
   nome         String
+  clienteNome  String?
   endereco     String?
   descricao    String?
   ativa        Boolean  @default(true)
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  alocacoes  FuncionarioObra[]
-  presencas  Presenca[]
-  visitantes UsuarioObra[]
+  alocacoes   FuncionarioObra[]
+  presencas   Presenca[]
+  visitantes  UsuarioObra[]
+  diarios     DiarioObra[]
+  emprestimos FerramentaEmprestimo[]
 }
 
 model UsuarioObra {
@@ -73,6 +81,7 @@ model Funcionario {
 
   obras     FuncionarioObra[]
   presencas Presenca[]
+  custos    CustoFuncionario[]
 }
 
 model FuncionarioObra {
@@ -127,6 +136,78 @@ model PresencaHistorico {
 
   @@index([presencaId])
   @@index([funcionarioId, data])
+}
+
+model CustoFuncionario {
+  id            String               @id @default(cuid())
+  tipo          TipoCustoFuncionario
+  cargo         String?
+  funcionarioId String?
+  valorDiario   Decimal              @db.Decimal(10, 2)
+  ativo         Boolean              @default(true)
+  criadoEm      DateTime             @default(now())
+  atualizadoEm  DateTime             @updatedAt
+
+  funcionario Funcionario? @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  @@index([tipo, cargo])
+  @@index([funcionarioId])
+}
+
+model DiarioObra {
+  id          String   @id @default(cuid())
+  obraId      String
+  data        DateTime @db.Date
+  clienteNome String?
+  clima       String?
+  observacoes String?  @db.Text
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  obra  Obra             @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  fotos DiarioObraFoto[]
+
+  @@index([obraId, data])
+}
+
+model DiarioObraFoto {
+  id           String  @id @default(cuid())
+  diarioId     String
+  pagina       Int     @default(0)
+  ordem        Int
+  imagemBase64 String? @db.Text
+  legenda      String? @db.Text
+
+  diario DiarioObra @relation(fields: [diarioId], references: [id], onDelete: Cascade)
+
+  @@index([diarioId])
+}
+
+model Ferramenta {
+  id           String   @id @default(cuid())
+  nome         String
+  descricao    String?
+  ativa        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  emprestimos FerramentaEmprestimo[]
+}
+
+model FerramentaEmprestimo {
+  id            String    @id @default(cuid())
+  ferramentaId  String
+  obraId        String
+  dataDeixada   DateTime  @db.Date
+  dataDevolvida DateTime? @db.Date
+  observacao    String?
+  criadoEm      DateTime  @default(now())
+
+  ferramenta Ferramenta @relation(fields: [ferramentaId], references: [id], onDelete: Cascade)
+  obra       Obra       @relation(fields: [obraId], references: [id], onDelete: Cascade)
+
+  @@index([obraId])
+  @@index([ferramentaId])
 }
 
 model PasswordReset {
