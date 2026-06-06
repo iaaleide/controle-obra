@@ -6,6 +6,7 @@ import { paraArmazenamento } from "@/lib/telefone";
 
 const includeObras = {
   obras: {
+    where: { obra: { ativa: true } },
     include: { obra: { select: { id: true, nome: true } } },
   },
 } as const;
@@ -38,7 +39,9 @@ export async function GET(request: Request) {
   const funcionarios = await prisma.funcionario.findMany({
     where: {
       ativo: true,
-      ...(obraId ? { obras: { some: { obraId } } } : {}),
+      ...(obraId
+        ? { obras: { some: { obraId, obra: { ativa: true } } } }
+        : {}),
       ...(semObra ? { obras: { none: {} } } : {}),
     },
     include: includeObras,

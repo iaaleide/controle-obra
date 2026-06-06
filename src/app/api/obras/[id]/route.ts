@@ -28,7 +28,13 @@ export async function PUT(
       ...(descricao !== undefined ? { descricao: descricao || null } : {}),
       ...(ativa !== undefined ? { ativa } : {}),
     },
-    include: { _count: { select: { alocacoes: true } } },
+    include: {
+      _count: {
+        select: {
+          alocacoes: { where: { funcionario: { ativo: true } } },
+        },
+      },
+    },
   });
 
   return NextResponse.json(obra);
@@ -65,10 +71,19 @@ export async function DELETE(
     return NextResponse.json({ error: "Obra já está inativa" }, { status: 400 });
   }
 
+  await prisma.funcionarioObra.deleteMany({ where: { obraId: id } });
+
   const obra = await prisma.obra.update({
     where: { id },
     data: { ativa: false },
-    include: { _count: { select: { alocacoes: true, presencas: true } } },
+    include: {
+      _count: {
+        select: {
+          alocacoes: { where: { funcionario: { ativo: true } } },
+          presencas: true,
+        },
+      },
+    },
   });
 
   return NextResponse.json(obra);

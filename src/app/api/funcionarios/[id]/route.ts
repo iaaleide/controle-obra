@@ -6,6 +6,7 @@ import { paraArmazenamento } from "@/lib/telefone";
 
 const includeObras = {
   obras: {
+    where: { obra: { ativa: true } },
     include: { obra: { select: { id: true, nome: true } } },
   },
 } as const;
@@ -91,10 +92,13 @@ export async function DELETE(
     return NextResponse.json({ error: "Funcionário já está inativo" }, { status: 400 });
   }
 
-  const funcionario = await prisma.funcionario.update({
-    where: { id },
-    data: { ativo: false },
-    include: includeObras,
+  const funcionario = await prisma.$transaction(async (tx) => {
+    await tx.funcionarioObra.deleteMany({ where: { funcionarioId: id } });
+    return tx.funcionario.update({
+      where: { id },
+      data: { ativo: false },
+      include: includeObras,
+    });
   });
 
   return NextResponse.json(formatFuncionario(funcionario));

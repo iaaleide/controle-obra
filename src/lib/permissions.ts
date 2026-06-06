@@ -95,7 +95,7 @@ export function descricaoPerfil(perfil: Perfil): string {
   const descricoes: Record<Perfil, string> = {
     ADMIN: "Acesso total — cadastra e altera todos os dados",
     MESTRE:
-      "Cadastra funcionários, obras e presença; pode corrigir dias já registrados (fica no histórico)",
+      "Cadastra e edita obras e presença; pode corrigir dias já registrados (fica no histórico); não exclui",
     VISITANTE:
       "Visualiza e exporta relatórios apenas das obras liberadas para você (PDF, e-mail e WhatsApp)",
   };

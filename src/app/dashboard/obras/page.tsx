@@ -40,7 +40,7 @@ export default function ObrasPage() {
   const podeExcluir = user ? temPermissao(user.perfil, "excluir_obra") : false;
 
   async function carregar() {
-    const incluir = mostrarInativas && podeEditar;
+    const incluir = mostrarInativas && podeExcluir;
     const [resObras, resUser] = await Promise.all([
       fetch(`/api/obras${incluir ? "?incluirInativas=true" : ""}`),
       fetch("/api/auth/me"),
@@ -158,7 +158,7 @@ export default function ObrasPage() {
           ) : null
         }
       >
-        {podeEditar && (
+        {podeExcluir && (
           <label className="mb-4 flex cursor-pointer items-center gap-2 text-sm text-slate-600">
             <input
               type="checkbox"
@@ -248,7 +248,7 @@ export default function ObrasPage() {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
-                  {!obra.ativa && podeEditar && (
+                  {!obra.ativa && podeExcluir && (
                     <button
                       onClick={() => reativar(obra)}
                       disabled={acaoId === obra.id}

@@ -21,7 +21,13 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const incluirInativas =
     searchParams.get("incluirInativas") === "true" &&
-    temPermissao(session.perfil, "editar_obra");
+    temPermissao(session.perfil, "excluir_obra");
+
+  await prisma.funcionarioObra.deleteMany({
+    where: {
+      OR: [{ funcionario: { ativo: false } }, { obra: { ativa: false } }],
+    },
+  });
 
   const obras = await prisma.obra.findMany({
     where: {
@@ -30,7 +36,13 @@ export async function GET(request: Request) {
         ? { visitantes: { some: { usuarioId: session.id } } }
         : {}),
     },
-    include: { _count: { select: { alocacoes: true } } },
+    include: {
+      _count: {
+        select: {
+          alocacoes: { where: { funcionario: { ativo: true } } },
+        },
+      },
+    },
     orderBy: { nome: "asc" },
   });
 
