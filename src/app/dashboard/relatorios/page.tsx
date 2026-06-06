@@ -1,4 +1,4 @@
-"use client";Pra fina
+"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -229,7 +229,7 @@ export default function RelatoriosPage() {
                   <p className="w-full text-xs text-amber-700">
                     Cadastre seu e-mail e WhatsApp em{" "}
                     <Link href="/dashboard/alterar-senha" className="font-medium underline">
-                      Minha conta
+                      Minha Conta
                     </Link>{" "}
                     para preencher automaticamente.
                   </p>

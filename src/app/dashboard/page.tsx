@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
-import { temPermissao, labelPerfil } from "@/lib/permissions";
+import { temPermissao } from "@/lib/permissions";
 import { Card } from "@/components/ui/Card";
 import {
   Building2,
@@ -73,8 +73,7 @@ export default async function DashboardPage() {
     <div className="space-y-4">
       <Card>
         <p className="text-sm text-slate-600">
-          Olá, <strong>{session.nome}</strong> — você está como{" "}
-          <strong>{labelPerfil(session.perfil)}</strong>.
+          Olá, <strong>{session.nome}</strong>
         </p>
       </Card>
 
