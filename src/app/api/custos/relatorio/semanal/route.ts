@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { temPermissao } from "@/lib/permissions";
-import { gerarRelatorioCustoSemanal } from "@/lib/custo-relatorio";
+import {
+  gerarRelatorioCustoSemanal,
+  gerarRelatorioCustoPeriodo,
+} from "@/lib/custo-relatorio";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -9,12 +12,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 
-  const obraId = new URL(request.url).searchParams.get("obraId");
+  const { searchParams } = new URL(request.url);
+  const obraId = searchParams.get("obraId");
+  const dataInicio = searchParams.get("dataInicio");
+  const dataFim = searchParams.get("dataFim");
+
   if (!obraId) {
     return NextResponse.json({ error: "obraId é obrigatório" }, { status: 400 });
   }
 
-  const relatorio = await gerarRelatorioCustoSemanal(obraId);
+  const relatorio =
+    dataInicio && dataFim
+      ? await gerarRelatorioCustoPeriodo(
+          obraId,
+          new Date(dataInicio + "T00:00:00"),
+          new Date(dataFim + "T23:59:59")
+        )
+      : await gerarRelatorioCustoSemanal(obraId);
+
   if (!relatorio) {
     return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });
   }

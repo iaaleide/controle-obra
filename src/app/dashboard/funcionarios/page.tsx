@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
 import { temPermissao } from "@/lib/permissions";
+import { formatarCpf } from "@/lib/documento";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Perfil } from "@prisma/client";
 
@@ -18,6 +19,9 @@ interface Funcionario {
   id: string;
   nome: string;
   cargo: string | null;
+  rg: string | null;
+  cpf: string | null;
+  endereco: string | null;
   telefone: string | null;
   obras: Obra[];
 }
@@ -35,6 +39,9 @@ export default function FuncionariosPage() {
   const [editando, setEditando] = useState<Funcionario | null>(null);
   const [nome, setNome] = useState("");
   const [cargo, setCargo] = useState("");
+  const [rg, setRg] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [endereco, setEndereco] = useState("");
   const [telefone, setTelefone] = useState("");
   const [obraIds, setObraIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,6 +82,9 @@ export default function FuncionariosPage() {
     setEditando(f);
     setNome(f.nome);
     setCargo(f.cargo || "");
+    setRg(f.rg || "");
+    setCpf(f.cpf || "");
+    setEndereco(f.endereco || "");
     setTelefone(f.telefone || "");
     setObraIds(f.obras.map((o) => o.id));
     setShowForm(true);
@@ -86,6 +96,9 @@ export default function FuncionariosPage() {
     setEditando(null);
     setNome("");
     setCargo("");
+    setRg("");
+    setCpf("");
+    setEndereco("");
     setTelefone("");
     setObraIds([]);
     setErro("");
@@ -95,6 +108,10 @@ export default function FuncionariosPage() {
     setObraIds((prev) =>
       prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]
     );
+  }
+
+  function handleCpfChange(valor: string) {
+    setCpf(formatarCpf(valor));
   }
 
   async function salvar(e: React.FormEvent) {
@@ -108,7 +125,7 @@ export default function FuncionariosPage() {
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, cargo, telefone, obraIds }),
+      body: JSON.stringify({ nome, cargo, rg, cpf, endereco, telefone, obraIds }),
     });
 
     if (res.ok) {
@@ -170,7 +187,23 @@ export default function FuncionariosPage() {
         {showForm && (
           <form onSubmit={salvar} className="mb-4 space-y-3 rounded-xl bg-slate-50 p-4">
             <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-            <Input label="Cargo" value={cargo} onChange={(e) => setCargo(e.target.value)} />
+            <Input label="Cargo / Função" value={cargo} onChange={(e) => setCargo(e.target.value)} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input label="RG" value={rg} onChange={(e) => setRg(e.target.value)} />
+              <Input
+                label="CPF"
+                value={cpf}
+                onChange={(e) => handleCpfChange(e.target.value)}
+                placeholder="000.000.000-00"
+                inputMode="numeric"
+              />
+            </div>
+            <Input
+              label="Endereço"
+              value={endereco}
+              onChange={(e) => setEndereco(e.target.value)}
+              placeholder="Rua, número, bairro, cidade"
+            />
             <TelefoneBrasilInput
               label="Telefone"
               value={telefone}
@@ -219,19 +252,25 @@ export default function FuncionariosPage() {
           {funcionarios.map((f) => (
             <div
               key={f.id}
-              className="flex items-center justify-between rounded-xl border border-slate-100 p-4"
+              className="flex items-start justify-between rounded-xl border border-slate-100 p-4"
             >
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-800">{f.nome}</p>
                 {f.cargo && <p className="text-sm text-slate-500">{f.cargo}</p>}
-                <p className="mt-1 text-xs text-slate-400">
+                <div className="mt-2 space-y-0.5 text-xs text-slate-500">
+                  {f.cpf && <p>CPF: {f.cpf}</p>}
+                  {f.rg && <p>RG: {f.rg}</p>}
+                  {f.endereco && <p>Endereço: {f.endereco}</p>}
+                  {f.telefone && <p>Telefone: {f.telefone}</p>}
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
                   {f.obras.length > 0
                     ? f.obras.map((o) => o.nome).join(" · ")
                     : "Sem obra alocada"}
                 </p>
               </div>
               {(podeEditar || podeExcluir) && (
-                <div className="flex gap-1">
+                <div className="flex shrink-0 gap-1">
                   {podeEditar && (
                     <button
                       onClick={() => abrirEdicao(f)}

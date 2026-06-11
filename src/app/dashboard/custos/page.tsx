@@ -4,8 +4,16 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
 import { Download, Plus, Trash2 } from "lucide-react";
 import type { RelatorioCustoSemanal } from "@/lib/custo-relatorio";
+import {
+  aplicarParamsPeriodo,
+  fimSemanaAtual,
+  inicioSemanaAtual,
+  type ModoPeriodo,
+  validarPeriodo,
+} from "@/lib/periodo-relatorio";
 
 interface Obra {
   id: string;
@@ -37,6 +45,9 @@ export default function CustosPage() {
   const [valorDiario, setValorDiario] = useState("");
   const [obraRelatorio, setObraRelatorio] = useState("");
   const [relatorio, setRelatorio] = useState<RelatorioCustoSemanal | null>(null);
+  const [modoPeriodo, setModoPeriodo] = useState<ModoPeriodo>("semana");
+  const [dataInicio, setDataInicio] = useState(inicioSemanaAtual);
+  const [dataFim, setDataFim] = useState(fimSemanaAtual);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -89,11 +100,23 @@ export default function CustosPage() {
     carregar();
   }
 
+  function montarParamsRelatorio(): URLSearchParams {
+    const params = new URLSearchParams({ obraId: obraRelatorio });
+    aplicarParamsPeriodo(params, modoPeriodo, dataInicio, dataFim);
+    return params;
+  }
+
   async function gerarRelatorio() {
     if (!obraRelatorio) return;
+    const erroPeriodo = validarPeriodo(modoPeriodo, dataInicio, dataFim);
+    if (erroPeriodo) {
+      setErro(erroPeriodo);
+      return;
+    }
+
     setLoading(true);
     setErro("");
-    const res = await fetch(`/api/custos/relatorio/semanal?obraId=${obraRelatorio}`);
+    const res = await fetch(`/api/custos/relatorio/semanal?${montarParamsRelatorio()}`);
     const data = await res.json();
     if (res.ok) setRelatorio(data);
     else setErro(data.error || "Erro ao gerar relatório");
@@ -102,7 +125,12 @@ export default function CustosPage() {
 
   function exportarPdf() {
     if (!obraRelatorio) return;
-    window.open(`/api/custos/relatorio/pdf?obraId=${obraRelatorio}`, "_blank");
+    const erroPeriodo = validarPeriodo(modoPeriodo, dataInicio, dataFim);
+    if (erroPeriodo) {
+      setErro(erroPeriodo);
+      return;
+    }
+    window.open(`/api/custos/relatorio/pdf?${montarParamsRelatorio()}`, "_blank");
   }
 
   const moeda = (v: number) =>
@@ -113,7 +141,7 @@ export default function CustosPage() {
       <Card title="Custos de funcionários">
         <p className="mb-4 text-sm text-slate-500">
           Defina valor diário por <strong>cargo</strong> ou por <strong>pessoa</strong>.
-          Pessoa tem prioridade sobre cargo no relatório semanal.
+          Pessoa tem prioridade sobre cargo no relatório de custos.
         </p>
 
         <form onSubmit={cadastrar} className="mb-4 space-y-3 rounded-xl bg-slate-50 p-4">
@@ -195,26 +223,37 @@ export default function CustosPage() {
         </div>
       </Card>
 
-      <Card title="Relatório semanal de custos">
-        <div className="mb-4">
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Obra</label>
-          <select
-            value={obraRelatorio}
-            onChange={(e) => setObraRelatorio(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-          >
-            <option value="">Selecione a obra</option>
-            {obras.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.nome}
-              </option>
-            ))}
-          </select>
+      <Card title="Relatório de custos">
+        <div className="mb-4 space-y-3">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Obra</label>
+            <select
+              value={obraRelatorio}
+              onChange={(e) => setObraRelatorio(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+            >
+              <option value="">Selecione a obra</option>
+              {obras.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <PeriodoRelatorioSelector
+            modoPeriodo={modoPeriodo}
+            onModoPeriodoChange={setModoPeriodo}
+            dataInicio={dataInicio}
+            onDataInicioChange={setDataInicio}
+            dataFim={dataFim}
+            onDataFimChange={setDataFim}
+          />
         </div>
 
         <div className="flex flex-wrap gap-2">
           <Button onClick={gerarRelatorio} loading={loading} disabled={!obraRelatorio}>
-            Gerar relatório
+            {modoPeriodo === "semana" ? "Gerar relatório da semana" : "Gerar relatório do período"}
           </Button>
           {relatorio && (
             <Button variant="secondary" onClick={exportarPdf}>

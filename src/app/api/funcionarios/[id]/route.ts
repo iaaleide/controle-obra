@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import {
+  formatarCpf,
+  normalizarCpfOpcional,
+  normalizarEnderecoOpcional,
+  normalizarRgOpcional,
+} from "@/lib/documento";
 import { paraArmazenamento } from "@/lib/telefone";
 
 const includeObras = {
@@ -16,6 +22,9 @@ function formatFuncionario(
     id: string;
     nome: string;
     cargo: string | null;
+    rg: string | null;
+    cpf: string | null;
+    endereco: string | null;
     telefone: string | null;
     ativo: boolean;
     obras: { obra: { id: string; nome: string } }[];
@@ -25,6 +34,9 @@ function formatFuncionario(
     id: f.id,
     nome: f.nome,
     cargo: f.cargo,
+    rg: f.rg,
+    cpf: f.cpf ? formatarCpf(f.cpf) : null,
+    endereco: f.endereco,
     telefone: f.telefone,
     ativo: f.ativo,
     obras: f.obras.map((a) => a.obra),
@@ -41,7 +53,7 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const { nome, cargo, telefone, ativo, obraIds } = await request.json();
+  const { nome, cargo, rg, cpf, endereco, telefone, ativo, obraIds } = await request.json();
 
   if (ativo !== undefined && !temPermissao(session.perfil, "excluir_funcionario")) {
     return NextResponse.json({ error: "Sem permissão para alterar status" }, { status: 403 });
@@ -49,31 +61,78 @@ export async function PUT(
 
   const ids = Array.isArray(obraIds) ? obraIds.filter(Boolean) : null;
 
-  const funcionario = await prisma.$transaction(async (tx) => {
-    if (ids !== null) {
-      await tx.funcionarioObra.deleteMany({ where: { funcionarioId: id } });
-      if (ids.length > 0) {
-        await tx.funcionarioObra.createMany({
-          data: ids.map((obraId: string) => ({ funcionarioId: id, obraId })),
-        });
-      }
+  const dadosExtras: {
+    rg?: string | null;
+    cpf?: string | null;
+    endereco?: string | null;
+    telefone?: string | null;
+  } = {};
+
+  if (rg !== undefined) {
+    const normalizado = normalizarRgOpcional(rg);
+    if (!normalizado.ok) {
+      return NextResponse.json({ error: normalizado.error }, { status: 400 });
     }
+    dadosExtras.rg = normalizado.valor;
+  }
 
-    return tx.funcionario.update({
-      where: { id },
-      data: {
-        ...(nome !== undefined ? { nome: nome.trim() } : {}),
-        ...(cargo !== undefined ? { cargo: cargo || null } : {}),
-        ...(telefone !== undefined
-          ? { telefone: telefone ? paraArmazenamento(telefone) || null : null }
-          : {}),
-        ...(ativo !== undefined ? { ativo } : {}),
-      },
-      include: includeObras,
+  if (cpf !== undefined) {
+    const normalizado = normalizarCpfOpcional(cpf);
+    if (!normalizado.ok) {
+      return NextResponse.json({ error: normalizado.error }, { status: 400 });
+    }
+    dadosExtras.cpf = normalizado.valor;
+  }
+
+  if (endereco !== undefined) {
+    const normalizado = normalizarEnderecoOpcional(endereco);
+    if (!normalizado.ok) {
+      return NextResponse.json({ error: normalizado.error }, { status: 400 });
+    }
+    dadosExtras.endereco = normalizado.valor;
+  }
+
+  if (telefone !== undefined) {
+    dadosExtras.telefone = telefone
+      ? paraArmazenamento(telefone) || null
+      : null;
+  }
+
+  try {
+    const funcionario = await prisma.$transaction(async (tx) => {
+      if (ids !== null) {
+        await tx.funcionarioObra.deleteMany({ where: { funcionarioId: id } });
+        if (ids.length > 0) {
+          await tx.funcionarioObra.createMany({
+            data: ids.map((obraId: string) => ({ funcionarioId: id, obraId })),
+          });
+        }
+      }
+
+      return tx.funcionario.update({
+        where: { id },
+        data: {
+          ...(nome !== undefined ? { nome: nome.trim() } : {}),
+          ...(cargo !== undefined ? { cargo: cargo || null } : {}),
+          ...dadosExtras,
+          ...(ativo !== undefined ? { ativo } : {}),
+        },
+        include: includeObras,
+      });
     });
-  });
 
-  return NextResponse.json(formatFuncionario(funcionario));
+    return NextResponse.json(formatFuncionario(funcionario));
+  } catch (err) {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      err.code === "P2002"
+    ) {
+      return NextResponse.json({ error: "CPF já cadastrado" }, { status: 409 });
+    }
+    throw err;
+  }
 }
 
 export async function DELETE(

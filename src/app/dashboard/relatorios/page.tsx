@@ -8,9 +8,17 @@ import { Input } from "@/components/ui/Input";
 import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
 import { Download, Mail } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
+import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
 import type { RelatorioSemanal } from "@/lib/pdf";
 import { RODAPE_RELATORIO } from "@/lib/pdf";
 import { temPermissao } from "@/lib/permissions";
+import {
+  aplicarParamsPeriodo,
+  fimSemanaAtual,
+  inicioSemanaAtual,
+  type ModoPeriodo,
+  validarPeriodo,
+} from "@/lib/periodo-relatorio";
 
 interface Obra {
   id: string;
@@ -31,6 +39,9 @@ export default function RelatoriosPage() {
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [incluirSemPresenca, setIncluirSemPresenca] = useState(false);
+  const [modoPeriodo, setModoPeriodo] = useState<ModoPeriodo>("semana");
+  const [dataInicio, setDataInicio] = useState(inicioSemanaAtual);
+  const [dataFim, setDataFim] = useState(fimSemanaAtual);
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
@@ -51,14 +62,27 @@ export default function RelatoriosPage() {
       });
   }, []);
 
+  function montarParams(incluir: boolean): URLSearchParams {
+    const params = new URLSearchParams({
+      obraId,
+      incluirSemPresenca: String(incluir),
+    });
+    aplicarParamsPeriodo(params, modoPeriodo, dataInicio, dataFim);
+    return params;
+  }
+
   async function carregarRelatorio() {
     if (!obraId) return;
+    const erroPeriodo = validarPeriodo(modoPeriodo, dataInicio, dataFim);
+    if (erroPeriodo) {
+      setMensagem(erroPeriodo);
+      return;
+    }
+
     setLoading(true);
     setMensagem("");
     try {
-      const res = await fetch(
-        `/api/relatorios/semanal?obraId=${obraId}&incluirSemPresenca=${incluirEfetivo}`
-      );
+      const res = await fetch(`/api/relatorios/semanal?${montarParams(incluirEfetivo)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setRelatorio(data);
@@ -71,10 +95,12 @@ export default function RelatoriosPage() {
 
   function exportarPdf() {
     if (!obraId) return;
-    window.open(
-      `/api/relatorios/pdf?obraId=${obraId}&incluirSemPresenca=${incluirEfetivo}`,
-      "_blank"
-    );
+    const erroPeriodo = validarPeriodo(modoPeriodo, dataInicio, dataFim);
+    if (erroPeriodo) {
+      setMensagem(erroPeriodo);
+      return;
+    }
+    window.open(`/api/relatorios/pdf?${montarParams(incluirEfetivo)}`, "_blank");
   }
 
   async function alternarIncluirSemPresenca(checked: boolean) {
@@ -84,9 +110,7 @@ export default function RelatoriosPage() {
     setMensagem("");
     setLoading(true);
     try {
-      const res = await fetch(
-        `/api/relatorios/semanal?obraId=${obraId}&incluirSemPresenca=${checked}`
-      );
+      const res = await fetch(`/api/relatorios/semanal?${montarParams(checked)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setRelatorio(data);
@@ -99,16 +123,28 @@ export default function RelatoriosPage() {
 
   async function enviarEmail() {
     if (!obraId || !email) return;
+    const erroPeriodo = validarPeriodo(modoPeriodo, dataInicio, dataFim);
+    if (erroPeriodo) {
+      setMensagem(erroPeriodo);
+      return;
+    }
+
     setLoading(true);
+    const body: Record<string, unknown> = {
+      obraId,
+      tipo: "email",
+      destinatario: email,
+      incluirSemPresenca: incluirEfetivo,
+    };
+    if (modoPeriodo === "personalizado") {
+      body.dataInicio = dataInicio;
+      body.dataFim = dataFim;
+    }
+
     const res = await fetch("/api/relatorios/enviar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        obraId,
-        tipo: "email",
-        destinatario: email,
-        incluirSemPresenca: incluirEfetivo,
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     setMensagem(data.message || data.error);
@@ -117,15 +153,27 @@ export default function RelatoriosPage() {
 
   async function enviarWhatsApp() {
     if (!obraId) return;
+    const erroPeriodo = validarPeriodo(modoPeriodo, dataInicio, dataFim);
+    if (erroPeriodo) {
+      setMensagem(erroPeriodo);
+      return;
+    }
+
+    const body: Record<string, unknown> = {
+      obraId,
+      tipo: "whatsapp",
+      destinatario: whatsapp,
+      incluirSemPresenca: incluirEfetivo,
+    };
+    if (modoPeriodo === "personalizado") {
+      body.dataInicio = dataInicio;
+      body.dataFim = dataFim;
+    }
+
     const res = await fetch("/api/relatorios/enviar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        obraId,
-        tipo: "whatsapp",
-        destinatario: whatsapp,
-        incluirSemPresenca: incluirEfetivo,
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     if (data.url) window.open(data.url, "_blank");
@@ -135,10 +183,11 @@ export default function RelatoriosPage() {
   const podeEnviar = user ? temPermissao(user.perfil, "enviar_relatorio") : false;
   const ehVisitante = user?.perfil === "VISITANTE";
   const incluirEfetivo = ehVisitante ? false : incluirSemPresenca;
+  const labelPeriodo = modoPeriodo === "semana" ? "semana" : "período";
 
   return (
     <div className="space-y-4">
-      <Card title="Relatório semanal">
+      <Card title="Relatório de mão de obra">
         {ehVisitante && (
           <p className="mb-3 text-sm text-slate-500">
             Você só visualiza e exporta relatórios das obras liberadas para o seu perfil.
@@ -163,6 +212,16 @@ export default function RelatoriosPage() {
               ))}
             </select>
           </div>
+
+          <PeriodoRelatorioSelector
+            modoPeriodo={modoPeriodo}
+            onModoPeriodoChange={setModoPeriodo}
+            dataInicio={dataInicio}
+            onDataInicioChange={setDataInicio}
+            dataFim={dataFim}
+            onDataFimChange={setDataFim}
+          />
+
           {!ehVisitante && (
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
               <input
@@ -173,7 +232,7 @@ export default function RelatoriosPage() {
               />
               <span className="text-sm text-slate-600">
                 <span className="font-medium text-slate-800">
-                  Incluir quem não veio na semana
+                  Incluir quem não veio no {labelPeriodo}
                 </span>
                 <span className="mt-0.5 block text-xs text-slate-500">
                   Desmarcado (padrão): só quem teve pelo menos 1 dia. Marcado: lista todos com 0 dia(s).
@@ -182,7 +241,7 @@ export default function RelatoriosPage() {
             </label>
           )}
           <Button onClick={carregarRelatorio} loading={loading} fullWidth>
-            Carregar resumo da semana
+            {modoPeriodo === "semana" ? "Carregar resumo da semana" : "Carregar relatório do período"}
           </Button>
         </div>
         )}
@@ -194,14 +253,14 @@ export default function RelatoriosPage() {
             Total de presenças: <strong>{relatorio.totalPresencas}</strong>
             {(ehVisitante || !incluirSemPresenca) && (
               <span className="mt-1 block text-xs text-slate-400">
-                Exibindo só quem trabalhou pelo menos 1 dia nesta semana.
+                Exibindo só quem trabalhou pelo menos 1 dia neste {labelPeriodo}.
               </span>
             )}
           </p>
           <div className="space-y-2">
             {relatorio.linhas.length === 0 && (
               <p className="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">
-                Nenhum funcionário com presença nesta semana.
+                Nenhum funcionário com presença neste {labelPeriodo}.
               </p>
             )}
             {relatorio.linhas
@@ -209,7 +268,12 @@ export default function RelatoriosPage() {
               .map((l) => (
               <div key={l.funcionario} className="rounded-xl bg-slate-50 p-3">
                 <div className="flex justify-between">
-                  <span className="font-medium">{l.funcionario}</span>
+                  <div>
+                    <span className="font-medium">{l.funcionario}</span>
+                    {l.cargo && (
+                      <span className="ml-2 text-xs text-slate-500">{l.cargo}</span>
+                    )}
+                  </div>
                   <span className="text-blue-600 font-semibold">{l.diasTrabalhados} dia(s)</span>
                 </div>
                 {l.datas.length > 0 && (

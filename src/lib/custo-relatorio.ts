@@ -1,6 +1,7 @@
 import { TipoCustoFuncionario } from "@prisma/client";
 import { prisma } from "./prisma";
-import { gerarRelatorioSemanal } from "./relatorio";
+import { gerarRelatorioSemanal, gerarRelatorioPeriodo } from "./relatorio";
+import type { RelatorioSemanal } from "./pdf";
 
 export interface LinhaCusto {
   funcionario: string;
@@ -68,15 +69,10 @@ function resolverValorDiario(
   return { valor: 0, origem: "SEM_CUSTO" };
 }
 
-export async function gerarRelatorioCustoSemanal(
+async function montarRelatorioCusto(
   obraId: string,
-  referencia?: Date
-): Promise<RelatorioCustoSemanal | null> {
-  const relatorioPresenca = await gerarRelatorioSemanal(obraId, referencia, {
-    incluirSemPresenca: false,
-  });
-  if (!relatorioPresenca) return null;
-
+  relatorioPresenca: RelatorioSemanal
+): Promise<RelatorioCustoSemanal> {
   const custos = await buscarCustosAtivos();
   const funcionarios = await prisma.funcionario.findMany({
     where: {
@@ -90,11 +86,7 @@ export async function gerarRelatorioCustoSemanal(
 
   const linhas: LinhaCusto[] = relatorioPresenca.linhas.map((l) => {
     const f = mapaFunc[l.funcionario];
-    const { valor, origem } = resolverValorDiario(
-      f?.id ?? "",
-      l.cargo,
-      custos
-    );
+    const { valor, origem } = resolverValorDiario(f?.id ?? "", l.cargo, custos);
     const valorTotal = valor * l.diasTrabalhados;
     return {
       funcionario: l.funcionario,
@@ -112,6 +104,29 @@ export async function gerarRelatorioCustoSemanal(
     linhas,
     totalGeral: linhas.reduce((acc, l) => acc + l.valorTotal, 0),
   };
+}
+
+export async function gerarRelatorioCustoSemanal(
+  obraId: string,
+  referencia?: Date
+): Promise<RelatorioCustoSemanal | null> {
+  const relatorioPresenca = await gerarRelatorioSemanal(obraId, referencia, {
+    incluirSemPresenca: false,
+  });
+  if (!relatorioPresenca) return null;
+  return montarRelatorioCusto(obraId, relatorioPresenca);
+}
+
+export async function gerarRelatorioCustoPeriodo(
+  obraId: string,
+  dataInicio: Date,
+  dataFim: Date
+): Promise<RelatorioCustoSemanal | null> {
+  const relatorioPresenca = await gerarRelatorioPeriodo(obraId, dataInicio, dataFim, {
+    incluirSemPresenca: false,
+  });
+  if (!relatorioPresenca) return null;
+  return montarRelatorioCusto(obraId, relatorioPresenca);
 }
 
 export function periodoSemanaAtual(referencia = new Date()) {

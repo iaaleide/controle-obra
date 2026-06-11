@@ -5,7 +5,16 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
-import { Plus, Trash2, Wrench } from "lucide-react";
+import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
+import { Download, Plus, Trash2, Wrench } from "lucide-react";
+import type { RelatorioFerramentas } from "@/lib/ferramenta-relatorio";
+import {
+  aplicarParamsPeriodo,
+  fimSemanaAtual,
+  inicioSemanaAtual,
+  type ModoPeriodo,
+  validarPeriodo,
+} from "@/lib/periodo-relatorio";
 
 interface Obra {
   id: string;
@@ -33,6 +42,11 @@ export default function FerramentasPage() {
   const [emprestarId, setEmprestarId] = useState<string | null>(null);
   const [obraId, setObraId] = useState("");
   const [dataDeixada, setDataDeixada] = useState(new Date().toISOString().slice(0, 10));
+  const [obraRelatorio, setObraRelatorio] = useState("");
+  const [relatorio, setRelatorio] = useState<RelatorioFerramentas | null>(null);
+  const [modoPeriodo, setModoPeriodo] = useState<ModoPeriodo>("semana");
+  const [dataInicio, setDataInicio] = useState(inicioSemanaAtual);
+  const [dataFim, setDataFim] = useState(fimSemanaAtual);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -116,6 +130,39 @@ export default function FerramentasPage() {
       const data = await res.json();
       setErro(data.error || "Erro ao devolver");
     }
+  }
+
+  function montarParamsRelatorio(): URLSearchParams {
+    const params = new URLSearchParams({ obraId: obraRelatorio });
+    aplicarParamsPeriodo(params, modoPeriodo, dataInicio, dataFim);
+    return params;
+  }
+
+  async function gerarRelatorio() {
+    if (!obraRelatorio) return;
+    const erroPeriodo = validarPeriodo(modoPeriodo, dataInicio, dataFim);
+    if (erroPeriodo) {
+      setErro(erroPeriodo);
+      return;
+    }
+
+    setLoading(true);
+    setErro("");
+    const res = await fetch(`/api/ferramentas/relatorio?${montarParamsRelatorio()}`);
+    const data = await res.json();
+    if (res.ok) setRelatorio(data);
+    else setErro(data.error || "Erro ao gerar relatório");
+    setLoading(false);
+  }
+
+  function exportarPdf() {
+    if (!obraRelatorio) return;
+    const erroPeriodo = validarPeriodo(modoPeriodo, dataInicio, dataFim);
+    if (erroPeriodo) {
+      setErro(erroPeriodo);
+      return;
+    }
+    window.open(`/api/ferramentas/relatorio/pdf?${montarParamsRelatorio()}`, "_blank");
   }
 
   return (
@@ -230,6 +277,87 @@ export default function FerramentasPage() {
             </p>
           )}
         </div>
+      </Card>
+
+      <Card title="Relatório de ferramentas">
+        <p className="mb-4 text-sm text-slate-500">
+          Empréstimos de ferramentas na obra no período selecionado (inclui as ainda em uso).
+        </p>
+
+        <div className="mb-4 space-y-3">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Obra</label>
+            <select
+              value={obraRelatorio}
+              onChange={(e) => setObraRelatorio(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
+            >
+              <option value="">Selecione a obra</option>
+              {obras.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <PeriodoRelatorioSelector
+            modoPeriodo={modoPeriodo}
+            onModoPeriodoChange={setModoPeriodo}
+            dataInicio={dataInicio}
+            onDataInicioChange={setDataInicio}
+            dataFim={dataFim}
+            onDataFimChange={setDataFim}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={gerarRelatorio} loading={loading} disabled={!obraRelatorio}>
+            {modoPeriodo === "semana" ? "Gerar relatório da semana" : "Gerar relatório do período"}
+          </Button>
+          {relatorio && (
+            <Button variant="secondary" onClick={exportarPdf}>
+              <Download className="h-4 w-4" /> Exportar PDF
+            </Button>
+          )}
+        </div>
+
+        {relatorio && (
+          <div className="mt-4 space-y-2">
+            <p className="text-sm text-slate-600">
+              <strong>{relatorio.obra}</strong> — {relatorio.periodo}
+            </p>
+            <p className="text-sm text-slate-500">
+              {relatorio.linhas.length} empréstimo(s) no período
+            </p>
+            {relatorio.linhas.length === 0 && (
+              <p className="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">
+                Nenhum empréstimo neste período.
+              </p>
+            )}
+            {relatorio.linhas.map((l, i) => (
+              <div key={`${l.ferramenta}-${l.dataDeixada}-${i}`} className="rounded-xl bg-slate-50 p-3 text-sm">
+                <div className="flex justify-between gap-2">
+                  <span className="font-medium">{l.ferramenta}</span>
+                  <Badge
+                    className={
+                      l.status === "Em uso"
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-green-100 text-green-800"
+                    }
+                  >
+                    {l.status}
+                  </Badge>
+                </div>
+                {l.descricao && <p className="mt-1 text-xs text-slate-500">{l.descricao}</p>}
+                <p className="mt-1 text-xs text-slate-500">
+                  Deixada em {l.dataDeixada}
+                  {l.dataDevolvida ? ` · Devolvida em ${l.dataDevolvida}` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );
