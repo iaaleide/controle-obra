@@ -7,26 +7,32 @@ export function desenharCabecalhoRelatorio(
   doc: jsPDF,
   titulo: string,
   linhas: { label: string; valor: string }[],
-  startY = 20
+  startY = 20,
+  options?: { compacto?: boolean }
 ): number {
   const pageWidth = doc.internal.pageSize.getWidth();
+  const compacto = options?.compacto === true;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
+  doc.setFontSize(compacto ? 14 : 18);
   doc.setTextColor(30, 58, 95);
   doc.text(titulo, pageWidth / 2, startY, { align: "center" });
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(12);
+  doc.setFontSize(compacto ? 9 : 12);
   doc.setTextColor(71, 85, 105);
 
-  let y = startY + 12;
+  const tituloOffset = compacto ? 9 : 12;
+  const linhaStep = compacto ? 5.5 : 8;
+  let y = startY + tituloOffset;
   for (const linha of linhas) {
-    doc.text(`${linha.label}: ${linha.valor}`, 14, y);
-    y += 8;
+    doc.text(`${linha.label}: ${linha.valor}`, 14, y, {
+      maxWidth: pageWidth - 28,
+    });
+    y += linhaStep;
   }
 
-  return y + 4;
+  return y + (compacto ? 2 : 4);
 }
 
 export function desenharRodapeRelatorio(doc: jsPDF, rodape = RODAPE_RELATORIO) {

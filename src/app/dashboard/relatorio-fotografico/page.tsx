@@ -7,7 +7,9 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
 import { SpeechTextarea } from "@/components/diario/SpeechTextarea";
 import { inicioSemanaAtual, fimSemanaAtual, type ModoPeriodo } from "@/lib/periodo-relatorio";
-import { Download, Save, Trash2 } from "lucide-react";
+import { EnviarRelatorioContatos } from "@/components/relatorios/EnviarRelatorioContatos";
+import { temPermissao } from "@/lib/permissions";
+import { Download, Plus, Save, Trash2 } from "lucide-react";
 
 interface Obra {
   id: string;
@@ -16,15 +18,29 @@ interface Obra {
   endereco: string | null;
 }
 
+interface User {
+  perfil: "ADMIN" | "MESTRE" | "VISITANTE";
+  email?: string | null;
+  telefone?: string | null;
+}
+
 interface FotoSlot {
   imagemBase64: string;
   legenda: string;
 }
 
-const MAX_FOTOS = 6;
+const FOTOS_POR_FOLHA = 6;
+
+function criarSlots(quantidade: number): FotoSlot[] {
+  return Array.from({ length: quantidade }, () => ({ imagemBase64: "", legenda: "" }));
+}
 
 function slotsIniciais(): FotoSlot[] {
-  return Array.from({ length: MAX_FOTOS }, () => ({ imagemBase64: "", legenda: "" }));
+  return criarSlots(FOTOS_POR_FOLHA);
+}
+
+function totalFolhas(totalFotos: number): number {
+  return Math.max(1, Math.ceil(totalFotos / FOTOS_POR_FOLHA));
 }
 
 function lerImagem(file: File): Promise<string> {
@@ -49,6 +65,9 @@ export default function RelatorioFotograficoPage() {
   const [salvos, setSalvos] = useState<
     { id: string; periodoInicio: string; periodoFim: string; fotos?: unknown[] }[]
   >([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
@@ -59,7 +78,16 @@ export default function RelatorioFotograficoPage() {
     fetch("/api/obras")
       .then((r) => r.json())
       .then(setObras);
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data) => {
+        setUser(data);
+        if (data.email) setEmail(data.email);
+        if (data.telefone) setWhatsapp(data.telefone);
+      });
   }, []);
+
+  const podeEnviar = user ? temPermissao(user.perfil, "enviar_relatorio") : false;
 
   useEffect(() => {
     if (obra) setClienteNome(obra.clienteNome || "");
@@ -86,6 +114,10 @@ export default function RelatorioFotograficoPage() {
 
   function atualizarFoto(index: number, patch: Partial<FotoSlot>) {
     setFotos((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)));
+  }
+
+  function adicionarFolha() {
+    setFotos((prev) => [...prev, ...criarSlots(FOTOS_POR_FOLHA)]);
   }
 
   async function onFile(index: number, file: File | null) {
@@ -115,14 +147,21 @@ export default function RelatorioFotograficoPage() {
       setClienteNome(r.clienteNome || obra?.clienteNome || "");
       setObservacoes(r.observacoesGerais || "");
 
-      const slots = slotsIniciais();
-      (r.fotos || []).forEach((f: { ordem: number; imagemBase64?: string; legenda?: string }) => {
-        if (f.ordem < MAX_FOTOS) {
-          slots[f.ordem] = {
-            imagemBase64: f.imagemBase64 || "",
-            legenda: f.legenda || "",
-          };
-        }
+      const fotosSalvas = [...(r.fotos || [])].sort(
+        (a: { ordem: number }, b: { ordem: number }) => a.ordem - b.ordem
+      );
+      const totalSlots = Math.max(
+        FOTOS_POR_FOLHA,
+        Math.ceil(fotosSalvas.length / FOTOS_POR_FOLHA) * FOTOS_POR_FOLHA
+      );
+      const slots = Array.from({ length: totalSlots }, (_, ordem) => {
+        const f = fotosSalvas.find((x: { ordem: number }) => x.ordem === ordem) as
+          | { imagemBase64?: string; legenda?: string }
+          | undefined;
+        return {
+          imagemBase64: f?.imagemBase64 || "",
+          legenda: f?.legenda || "",
+        };
       });
       setFotos(slots);
       setMensagem("Relatório carregado.");
@@ -164,10 +203,8 @@ export default function RelatorioFotograficoPage() {
     }
   }
 
-  async function salvar() {
-    if (!obraId) return;
-    setLoading(true);
-    setMensagem("");
+  async function persistirRelatorio(): Promise<string | null> {
+    if (!obraId) return null;
 
     const payload = {
       obraId,
@@ -193,33 +230,94 @@ export default function RelatorioFotograficoPage() {
     });
 
     const result = await res.json();
-    if (res.ok) {
-      setRelatorioId(result.id);
-      setMensagem("Relatório salvo!");
-      await listarSalvos();
-    } else {
+    if (!res.ok) {
       setMensagem(result.error || "Erro ao salvar");
+      return null;
+    }
+
+    setRelatorioId(result.id);
+    await listarSalvos();
+    return result.id as string;
+  }
+
+  async function salvar() {
+    if (!obraId) return;
+    setLoading(true);
+    setMensagem("");
+    const id = await persistirRelatorio();
+    if (id) setMensagem("Relatório salvo!");
+    setLoading(false);
+  }
+
+  async function exportarPdf() {
+    if (!obraId) return;
+    setLoading(true);
+    setMensagem("");
+    const id = await persistirRelatorio();
+    if (id) {
+      window.open(`/api/relatorios-fotografico/${id}/pdf`, "_blank");
+      setMensagem("PDF exportado. Relatório salvo no histórico da obra.");
     }
     setLoading(false);
   }
 
-  function exportarPdf() {
-    if (!relatorioId) {
-      setMensagem("Salve o relatório antes de exportar o PDF");
-      return;
-    }
-    window.open(`/api/relatorios-fotografico/${relatorioId}/pdf`, "_blank");
+  function payloadEnvio() {
+    return {
+      obraId,
+      periodoInicio: dataInicio,
+      periodoFim: dataFim,
+      clienteNome,
+      observacoesGerais: observacoes,
+      fotos: fotos.map((f, ordem) => ({
+        ordem,
+        imagemBase64: f.imagemBase64 || undefined,
+        legenda: f.legenda || undefined,
+      })),
+    };
   }
 
-  const colsGrid =
-    fotosPreenchidas.length <= 2 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2";
+  async function enviarEmail() {
+    if (!obraId || !email) return;
+    setLoading(true);
+    setMensagem("");
+    const res = await fetch("/api/relatorios-fotografico/enviar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payloadEnvio(), tipo: "email", destinatario: email }),
+    });
+    const data = await res.json();
+    setMensagem(data.message || data.error || (res.ok ? "E-mail enviado" : "Erro ao enviar"));
+    setLoading(false);
+  }
+
+  async function enviarWhatsApp() {
+    if (!obraId) return;
+    setLoading(true);
+    setMensagem("");
+    const res = await fetch("/api/relatorios-fotografico/enviar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payloadEnvio(),
+        tipo: "whatsapp",
+        destinatario: whatsapp,
+      }),
+    });
+    const data = await res.json();
+    if (data.url) window.open(data.url, "_blank");
+    setMensagem(data.message || data.error || "Link WhatsApp gerado");
+    setLoading(false);
+  }
+
+  const numFolhas = totalFolhas(fotos.length);
 
   return (
     <div className="space-y-4">
       <Card title="Relatório Fotográfico">
         <p className="mb-4 text-sm text-slate-500">
-          Selecione o período, adicione até {MAX_FOTOS} fotos com ajuste automático no quadro e
-          exporte PDF com cabeçalho padronizado.
+          Selecione o período e adicione fotos em folhas de {FOTOS_POR_FOLHA}. O PDF usa cabeçalho
+          compacto para caber 6 fotos por página; use &quot;Adicionar folha&quot; para incluir mais
+          imagens em páginas seguintes.
         </p>
 
         <div className="mb-4 space-y-3">
@@ -260,7 +358,7 @@ export default function RelatorioFotograficoPage() {
           {obraId && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-slate-700">Relatórios salvos</p>
+                <p className="text-sm font-medium text-slate-700">Histórico da obra</p>
                 <Button type="button" variant="ghost" onClick={novoRelatorio} className="text-xs">
                   Novo relatório
                 </Button>
@@ -322,36 +420,58 @@ export default function RelatorioFotograficoPage() {
           />
         </div>
 
-        <p className="mb-2 text-sm font-medium text-slate-700">Fotos (até {MAX_FOTOS})</p>
-        <div className={`grid gap-4 ${colsGrid}`}>
-          {fotos.map((foto, i) => (
-            <div key={i} className="rounded-xl border border-slate-200 p-3">
-              <p className="mb-2 text-xs font-medium text-slate-500">Foto {i + 1}</p>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => onFile(i, e.target.files?.[0] ?? null)}
-                className="mb-2 w-full text-xs"
-              />
-              <div className="mb-2 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
-                {foto.imagemBase64 ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={foto.imagemBase64}
-                    alt={`Foto ${i + 1}`}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                ) : (
-                  <span className="text-xs text-slate-400">Quadro {i + 1}</span>
-                )}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium text-slate-700">
+            Fotos — {numFolhas} folha(s) · {fotosPreenchidas.length} preenchida(s)
+          </p>
+          <Button type="button" variant="secondary" onClick={adicionarFolha}>
+            <Plus className="h-4 w-4" /> Adicionar folha
+          </Button>
+        </div>
+
+        <div className="space-y-6">
+          {Array.from({ length: numFolhas }, (_, folha) => (
+            <div key={folha} className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Folha {folha + 1} — até {FOTOS_POR_FOLHA} fotos no PDF
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {fotos
+                  .slice(folha * FOTOS_POR_FOLHA, (folha + 1) * FOTOS_POR_FOLHA)
+                  .map((foto, j) => {
+                    const i = folha * FOTOS_POR_FOLHA + j;
+                    return (
+                      <div key={i} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <p className="mb-2 text-xs font-medium text-slate-500">Foto {i + 1}</p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => onFile(i, e.target.files?.[0] ?? null)}
+                          className="mb-2 w-full text-xs"
+                        />
+                        <div className="mb-2 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
+                          {foto.imagemBase64 ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={foto.imagemBase64}
+                              alt={`Foto ${i + 1}`}
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          ) : (
+                            <span className="text-xs text-slate-400">Quadro {i + 1}</span>
+                          )}
+                        </div>
+                        <SpeechTextarea
+                          label="Legenda"
+                          value={foto.legenda}
+                          onChange={(v) => atualizarFoto(i, { legenda: v })}
+                          rows={2}
+                        />
+                      </div>
+                    );
+                  })}
               </div>
-              <SpeechTextarea
-                label="Legenda"
-                value={foto.legenda}
-                onChange={(v) => atualizarFoto(i, { legenda: v })}
-                rows={2}
-              />
             </div>
           ))}
         </div>
@@ -361,7 +481,7 @@ export default function RelatorioFotograficoPage() {
             <h3 className="mb-3 text-center text-sm font-bold text-slate-800">
               Pré-visualização do cabeçalho
             </h3>
-            <div className="grid gap-1 text-sm text-slate-700 sm:grid-cols-2">
+            <div className="grid gap-0.5 text-xs text-slate-700 sm:grid-cols-2">
               <p>
                 <strong>Obra:</strong> {obra?.nome}
               </p>
@@ -391,7 +511,7 @@ export default function RelatorioFotograficoPage() {
           <Button onClick={salvar} loading={loading} disabled={!obraId}>
             <Save className="h-4 w-4" /> Salvar
           </Button>
-          <Button variant="secondary" onClick={exportarPdf} disabled={!relatorioId}>
+          <Button variant="secondary" onClick={exportarPdf} loading={loading} disabled={!obraId}>
             <Download className="h-4 w-4" /> Exportar PDF
           </Button>
           {relatorioId && (
@@ -404,6 +524,19 @@ export default function RelatorioFotograficoPage() {
             </Button>
           )}
         </div>
+
+        {podeEnviar && obraId && (
+          <EnviarRelatorioContatos
+            email={email}
+            onEmailChange={setEmail}
+            whatsapp={whatsapp}
+            onWhatsappChange={setWhatsapp}
+            onEnviarEmail={enviarEmail}
+            onEnviarWhatsApp={enviarWhatsApp}
+            loading={loading}
+            disabled={!obraId}
+          />
+        )}
       </Card>
     </div>
   );

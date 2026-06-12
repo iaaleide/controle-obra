@@ -68,7 +68,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (Array.isArray(fotos)) {
       await tx.fotoRelatorio.deleteMany({ where: { relatorioId: id } });
-      const lista = fotos.slice(0, 6);
+      const lista = fotos;
       if (lista.length > 0) {
         await tx.fotoRelatorio.createMany({
           data: lista.map(

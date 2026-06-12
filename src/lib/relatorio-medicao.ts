@@ -61,7 +61,34 @@ export function calcularTotaisItens(
 }
 
 export function formatarMoeda(valor: number): string {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return valor.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Exibição em input — 13.875,00 (sem símbolo R$) */
+export function formatarMoedaDigitacao(valor: number): string {
+  return valor.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function parseMoedaBrasil(valor: string): number {
+  const limpo = valor.replace(/[^\d,.-]/g, "").trim();
+  if (!limpo) return 0;
+
+  if (limpo.includes(",")) {
+    const semMilhar = limpo.replace(/\./g, "");
+    const n = parseFloat(semMilhar.replace(",", "."));
+    return Number.isNaN(n) ? 0 : Math.round(n * 100) / 100;
+  }
+
+  const n = parseFloat(limpo);
+  return Number.isNaN(n) ? 0 : Math.round(n * 100) / 100;
 }
 
 export function formatarPercentual(valor: number): string {

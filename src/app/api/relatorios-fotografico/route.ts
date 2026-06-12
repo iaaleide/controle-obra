@@ -53,7 +53,7 @@ export async function POST(request: Request) {
   }
 
   const obra = await prisma.obra.findUnique({ where: { id: obraId } });
-  const listaFotos = Array.isArray(fotos) ? fotos.slice(0, 6) : [];
+  const listaFotos = Array.isArray(fotos) ? fotos : [];
 
   const relatorio = await prisma.$transaction(async (tx) => {
     const criado = await tx.relatorio.create({

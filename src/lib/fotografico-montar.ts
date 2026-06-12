@@ -16,7 +16,6 @@ export function montarRelatorioFotograficoParaPdf(
 ): RelatorioFotograficoCompleto {
   const fotos: FotoRelatorio[] = payload.fotos
     .filter((f) => f.imagemBase64)
-    .slice(0, 6)
     .map((f, index) => ({
       id: `preview-${index}`,
       relatorioId: "preview",

@@ -13,6 +13,14 @@ export type RelatorioFotograficoCompleto = Relatorio & {
   fotos: FotoRelatorio[];
 };
 
+export const FOTOS_POR_FOLHA_PDF = 6;
+const COLS = 2;
+const MARGIN_X = 14;
+const COL_GAP = 5;
+const ROW_GAP = 3;
+const LEGENDA_H = 5;
+const FOOTER_MARGIN = 32;
+
 function detectarFormatoImagem(dataUrl: string): "JPEG" | "PNG" | "WEBP" {
   if (dataUrl.startsWith("data:image/png")) return "PNG";
   if (dataUrl.startsWith("data:image/webp")) return "WEBP";
@@ -37,10 +45,19 @@ function desenharFotoNoQuadro(
     const formato = detectarFormatoImagem(dataUrl);
     doc.addImage(dataUrl, formato, x + 2 + fit.x, y + 2 + fit.y, fit.w, fit.h);
   } catch {
-    doc.setFontSize(8);
+    doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     doc.text("Imagem indisponível", x + boxW / 2, y + boxH / 2, { align: "center" });
   }
+}
+
+function chunkFotos<T>(lista: T[], tamanho: number): T[][] {
+  if (lista.length === 0) return [[]];
+  const paginas: T[][] = [];
+  for (let i = 0; i < lista.length; i += tamanho) {
+    paginas.push(lista.slice(i, i + tamanho));
+  }
+  return paginas;
 }
 
 export function gerarPdfRelatorioFotografico(relatorio: RelatorioFotograficoCompleto): Buffer {
@@ -49,60 +66,76 @@ export function gerarPdfRelatorioFotografico(relatorio: RelatorioFotograficoComp
   const pageHeight = doc.internal.pageSize.getHeight();
   const periodo = formatarPeriodo(relatorio.periodoInicio, relatorio.periodoFim);
 
-  let y = desenharCabecalhoRelatorio(doc, "Relatório Fotográfico", [
-    { label: "Obra", valor: relatorio.obra.nome },
-    { label: "Cliente", valor: relatorio.clienteNome || relatorio.obra.clienteNome || "—" },
-    { label: "Endereço", valor: relatorio.obra.endereco || "—" },
-    { label: "Período", valor: periodo },
-  ]);
+  const fotos = relatorio.fotos
+    .filter((f) => f.imagemBase64)
+    .sort((a, b) => a.ordem - b.ordem);
+  const paginas = chunkFotos(fotos, FOTOS_POR_FOLHA_PDF);
 
-  const fotos = relatorio.fotos.filter((f) => f.imagemBase64).slice(0, 6);
-  const cols = fotos.length <= 2 ? 1 : 2;
-  const gap = 6;
-  const boxW = (pageWidth - 28 - gap * (cols - 1)) / cols;
-  const boxH = cols === 1 ? 90 : 70;
+  const boxW = (pageWidth - MARGIN_X * 2 - COL_GAP * (COLS - 1)) / COLS;
+  const rows = FOTOS_POR_FOLHA_PDF / COLS;
 
-  let col = 0;
-  let rowY = y;
+  for (let pagina = 0; pagina < paginas.length; pagina++) {
+    if (pagina > 0) doc.addPage();
 
-  for (let i = 0; i < fotos.length; i++) {
-    const foto = fotos[i];
-    const x = 14 + col * (boxW + gap);
+    const fotosPagina = paginas[pagina];
+    let y: number;
 
-    if (rowY + boxH + 20 > pageHeight - 32) {
-      doc.addPage();
-      rowY = 20;
-      col = 0;
+    if (pagina === 0) {
+      y = desenharCabecalhoRelatorio(
+        doc,
+        "Relatório Fotográfico",
+        [
+          { label: "Obra", valor: relatorio.obra.nome },
+          { label: "Cliente", valor: relatorio.clienteNome || relatorio.obra.clienteNome || "—" },
+          { label: "Endereço", valor: relatorio.obra.endereco || "—" },
+          { label: "Período", valor: periodo },
+        ],
+        16,
+        { compacto: true }
+      );
+    } else {
+      y = 16;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(30, 58, 95);
+      doc.text(`Relatório Fotográfico — folha ${pagina + 1}`, MARGIN_X, y);
+      y += 7;
     }
 
-    desenharFotoNoQuadro(doc, foto.imagemBase64!, x, rowY, boxW, boxH);
+    const pageBottom = pageHeight - FOOTER_MARGIN;
+    const available = pageBottom - y;
+    const boxH = Math.floor(
+      (available - rows * LEGENDA_H - (rows - 1) * ROW_GAP) / rows
+    );
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105);
-    const legenda = foto.legenda || `Foto ${i + 1}`;
-    doc.text(legenda, x, rowY + boxH + 5, { maxWidth: boxW });
+    for (let i = 0; i < fotosPagina.length; i++) {
+      const foto = fotosPagina[i];
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const x = MARGIN_X + col * (boxW + COL_GAP);
+      const rowY = y + row * (boxH + LEGENDA_H + ROW_GAP);
 
-    col++;
-    if (col >= cols) {
-      col = 0;
-      rowY += boxH + 18;
+      desenharFotoNoQuadro(doc, foto.imagemBase64!, x, rowY, boxW, boxH);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(71, 85, 105);
+      const legenda = foto.legenda || `Foto ${pagina * FOTOS_POR_FOLHA_PDF + i + 1}`;
+      doc.text(legenda, x, rowY + boxH + 4, { maxWidth: boxW });
     }
   }
 
   if (relatorio.observacoesGerais) {
-    const obsY = Math.max(rowY + (col > 0 ? boxH + 18 : 0), y + 10);
-    const finalY = obsY > pageHeight - 40 ? 20 : obsY;
-    if (obsY > pageHeight - 40) doc.addPage();
-
+    doc.addPage();
+    const obsY = 20;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(30, 58, 95);
-    doc.text("Observações", 14, finalY);
+    doc.text("Observações", MARGIN_X, obsY);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105);
-    doc.text(relatorio.observacoesGerais, 14, finalY + 6, { maxWidth: pageWidth - 28 });
+    doc.text(relatorio.observacoesGerais, MARGIN_X, obsY + 6, { maxWidth: pageWidth - 28 });
   }
 
   aplicarRodapeTodasPaginas(doc, RODAPE_SOFT);
