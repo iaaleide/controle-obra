@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
 import { Check, ArrowLeft, User, Trash2 } from "lucide-react";
-import { temPermissao } from "@/lib/permissions";
+import { labelPerfil, temPermissao } from "@/lib/permissions";
+import type { Perfil } from "@prisma/client";
 
 interface Obra {
   id: string;
@@ -234,12 +235,10 @@ export default function PresencaPage() {
   }
 
   function labelPerfilHistorico(perfil: string) {
-    const labels: Record<string, string> = {
-      ADMIN: "Administrador",
-      MESTRE: "Mestre de Obra",
-      VISITANTE: "Visitante",
-    };
-    return labels[perfil] ?? perfil;
+    if (perfil === "ADMIN" || perfil === "MESTRE" || perfil === "VISITANTE") {
+      return labelPerfil(perfil as Perfil);
+    }
+    return perfil;
   }
 
   function formatarHistorico(item: HistoricoItem) {

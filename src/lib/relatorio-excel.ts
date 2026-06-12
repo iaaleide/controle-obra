@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
-import { calcularItemMedicao, parseNumero, type ItemMedicaoInput } from "@/lib/relatorio-medicao";
+import { calcularItemMedicao, type ItemMedicaoInput } from "@/lib/relatorio-medicao";
+import { mapearRegistroParaItem } from "@/lib/relatorio-import";
 
 const COLUNAS = [
   "Item",
@@ -38,25 +39,7 @@ export function importarItensExcel(buffer: Buffer | ArrayBuffer): ItemMedicaoInp
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
 
   return rows
-    .map((row, index) => {
-      const descricao = String(row["Descrição"] || row["Descricao"] || row["descricao"] || "").trim();
-      if (!descricao) return null;
-
-      const mostrarRaw = String(
-        row["Mostrar no relatório"] || row["Mostrar no relatorio"] || row["mostrar_no_relatorio"] || "Sim"
-      ).toLowerCase();
-
-      const item: ItemMedicaoInput = {
-        item: String(row["Item"] || row["item"] || String(index + 1)).trim() || null,
-        descricao,
-        valorTotal: parseNumero(row["Valor Total"] ?? row["valor_total"]),
-        valorPrevisto: parseNumero(row["Valor Previsto"] ?? row["valor_previsto"]),
-        valorRealizado: parseNumero(row["Valor Realizado"] ?? row["valor_realizado"]),
-        observacao: String(row["Observação"] || row["Observacao"] || row["observacao"] || "").trim() || null,
-        mostrarNoRelatorio: !["nao", "não", "false", "0", "n"].includes(mostrarRaw),
-      };
-      return item;
-    })
+    .map((row, index) => mapearRegistroParaItem(row, index))
     .filter((item): item is ItemMedicaoInput => item !== null);
 }
 

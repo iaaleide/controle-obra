@@ -89,7 +89,7 @@ export function temPermissao(perfil: Perfil, permissao: Permissao): boolean {
 export function labelPerfil(perfil: Perfil): string {
   const labels: Record<Perfil, string> = {
     ADMIN: "Administrador",
-    MESTRE: "Mestre de Obra",
+    MESTRE: "Gestor",
     VISITANTE: "Visitante",
   };
   return labels[perfil];

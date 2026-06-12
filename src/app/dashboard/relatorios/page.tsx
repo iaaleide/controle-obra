@@ -195,7 +195,7 @@ export default function RelatoriosPage() {
         )}
         {obras.length === 0 ? (
           <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
-            Nenhuma obra liberada para você. Peça ao administrador ou mestre de obra para
+            Nenhuma obra liberada para você. Peça ao administrador ou gestor para
             liberar o acesso em <strong>Visitantes</strong>.
           </p>
         ) : (

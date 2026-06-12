@@ -251,7 +251,7 @@ export default function UsuariosPage() {
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
               >
                 <option value="ADMIN">Administrador</option>
-                <option value="MESTRE">Mestre de Obra</option>
+                <option value="MESTRE">Gestor</option>
                 <option value="VISITANTE">Visitante</option>
               </select>
             </div>
@@ -337,7 +337,7 @@ export default function UsuariosPage() {
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
                     >
                       <option value="ADMIN">Administrador</option>
-                      <option value="MESTRE">Mestre de Obra</option>
+                      <option value="MESTRE">Gestor</option>
                       <option value="VISITANTE">Visitante</option>
                     </select>
                   </div>

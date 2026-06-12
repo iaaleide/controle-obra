@@ -1,4 +1,5 @@
 import type { ItemRelatorio, ModoGraficoMedicao, Obra, Relatorio } from "@prisma/client";
+import { RODAPE_RELATORIO } from "@/lib/pdf";
 
 export type ItemMedicaoInput = {
   item?: string | null;
@@ -73,4 +74,43 @@ export function parseNumero(valor: unknown): number {
     return Number.isNaN(n) ? 0 : n;
   }
   return 0;
+}
+
+export function textoMedicaoWhatsApp(dados: {
+  obra: string;
+  periodo: string;
+  cliente?: string | null;
+  itens: ItemMedicaoCalculado[];
+  acumuladoTotal?: number | null;
+}): string {
+  const visiveis = dados.itens.filter((i) => i.mostrarNoRelatorio !== false);
+  const totais = calcularTotaisItens(visiveis);
+
+  let texto = `📊 *Relatório de Medição*\n`;
+  texto += `🏗️ Obra: ${dados.obra}\n`;
+  if (dados.cliente) texto += `👤 Cliente: ${dados.cliente}\n`;
+  texto += `📅 Período: ${dados.periodo}\n\n`;
+
+  if (visiveis.length === 0) {
+    texto += `_Nenhum serviço no relatório._\n`;
+  } else {
+    for (const item of visiveis) {
+      texto += `📌 ${item.item ? `${item.item} — ` : ""}${item.descricao}\n`;
+      texto += `   Total: ${formatarMoeda(item.valorTotal)} | Prev: ${formatarMoeda(item.valorPrevisto)} | Real: ${formatarMoeda(item.valorRealizado)}\n`;
+      texto += `   Executado: *${item.percentualExecutado.toFixed(1)}%*\n`;
+      if (item.observacao) texto += `   Obs: ${item.observacao}\n`;
+    }
+  }
+
+  texto += `\n*Totais*\n`;
+  texto += `Valor total: ${formatarMoeda(totais.valorTotal)}\n`;
+  texto += `Previsto: ${formatarMoeda(totais.valorPrevisto)}\n`;
+  texto += `Realizado: ${formatarMoeda(totais.valorRealizado)}\n`;
+
+  if (dados.acumuladoTotal != null) {
+    texto += `Acumulado medido: ${formatarMoeda(Number(dados.acumuladoTotal))}\n`;
+  }
+
+  texto += `\n${RODAPE_RELATORIO}`;
+  return texto;
 }

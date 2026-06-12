@@ -7,7 +7,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
 import {
   BarChartComparativo,
-  BarChartConsolidado,
+  BarChartResumoTotal,
 } from "@/components/medicao/BarChartComparativo";
 import {
   calcularItemMedicao,
@@ -17,7 +17,7 @@ import {
 } from "@/lib/relatorio-medicao";
 import { inicioSemanaAtual, fimSemanaAtual, type ModoPeriodo } from "@/lib/periodo-relatorio";
 import type { ModoGraficoMedicao } from "@prisma/client";
-import { Download, FileSpreadsheet, Plus, Save, Trash2 } from "lucide-react";
+import { Download, FileText, Plus, Save, Trash2 } from "lucide-react";
 
 interface Obra {
   id: string;
@@ -186,7 +186,7 @@ export default function MedicaoPage() {
     setLoading(false);
   }
 
-  async function importarExcel(file: File) {
+  async function importarArquivo(file: File) {
     const formData = new FormData();
     formData.append("arquivo", file);
     const res = await fetch("/api/relatorios-medicao/importar", { method: "POST", body: formData });
@@ -198,7 +198,8 @@ export default function MedicaoPage() {
           idLocal: crypto.randomUUID(),
         }))
       );
-      setMensagem(`${result.itens.length} item(ns) importado(s)`);
+      const origem = result.origem === "pdf" ? "PDF" : "Excel";
+      setMensagem(`${result.itens.length} item(ns) importado(s) do ${origem}`);
     } else {
       setMensagem(result.error || "Erro na importação");
     }
@@ -218,8 +219,8 @@ export default function MedicaoPage() {
     <div className="space-y-4">
       <Card title="Relatório de Medição">
         <p className="mb-4 text-sm text-slate-500">
-          Importe do Supabase ou Excel, edite os serviços e exporte PDF com gráficos Previsto x
-          Realizado.
+          Importe do Supabase, Excel ou PDF com tabela de serviços, edite e exporte com gráficos
+          Previsto x Realizado.
         </p>
 
         <div className="mb-4 space-y-3">
@@ -271,7 +272,7 @@ export default function MedicaoPage() {
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
-                Por serviço
+                Por atividade + resumo total
               </button>
               <button
                 type="button"
@@ -282,9 +283,12 @@ export default function MedicaoPage() {
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
-                Consolidado
+                Somente resumo total
               </button>
             </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Na tela: gráfico horizontal por atividade e resumo geral no final.
+            </p>
           </div>
 
           {salvos.length > 0 && (
@@ -318,7 +322,7 @@ export default function MedicaoPage() {
             <Plus className="h-4 w-4" /> Linha
           </Button>
           <Button variant="secondary" onClick={() => fileRef.current?.click()}>
-            <FileSpreadsheet className="h-4 w-4" /> Importar Excel
+            <FileText className="h-4 w-4" /> Importar Excel ou PDF
           </Button>
           <Button
             variant="secondary"
@@ -342,11 +346,11 @@ export default function MedicaoPage() {
           <input
             ref={fileRef}
             type="file"
-            accept=".xlsx,.xls"
+            accept=".xlsx,.xls,.pdf,application/pdf"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) importarExcel(file);
+              if (file) importarArquivo(file);
               e.target.value = "";
             }}
           />
@@ -437,14 +441,12 @@ export default function MedicaoPage() {
                     />
                   </div>
                 </div>
-                {modoGrafico === "POR_SERVICO" && item.mostrarNoRelatorio !== false && (
+                {item.mostrarNoRelatorio !== false && (
                   <div className="mt-3 rounded-lg bg-slate-50 p-2 lg:mt-0">
                     <BarChartComparativo
                       previsto={calc.valorPrevisto}
                       realizado={calc.valorRealizado}
                       label={item.descricao || item.item || "Serviço"}
-                      compacto
-                      height={140}
                     />
                   </div>
                 )}
@@ -453,15 +455,15 @@ export default function MedicaoPage() {
           })}
         </div>
 
-        {modoGrafico === "CONSOLIDADO" && itensGrafico.length > 0 && (
+        {itensGrafico.length > 0 && (
           <div className="mt-4 rounded-xl border border-slate-200 p-4">
-            <p className="mb-2 text-sm font-medium text-slate-700">Gráfico consolidado</p>
-            <BarChartConsolidado
-              itens={itensGrafico.map((i) => ({
-                label: i.item || i.descricao,
-                previsto: i.valorPrevisto,
-                realizado: i.valorRealizado,
-              }))}
+            <p className="mb-2 text-sm font-medium text-slate-700">
+              Resumo geral — Previsto x Realizado (total)
+            </p>
+            <BarChartResumoTotal
+              previsto={totais.valorPrevisto}
+              realizado={totais.valorRealizado}
+              height={120}
             />
           </div>
         )}

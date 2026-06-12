@@ -277,6 +277,21 @@ model FotoRelatorio {
   @@map("fotos_relatorio")
 }
 
+model RelatorioBackup {
+  id              String        @id @default(uuid()) @db.Uuid
+  relatorioId     String        @map("relatorio_id") @db.Uuid
+  obraId          String        @map("obra_id")
+  tipo            TipoRelatorio
+  dados           Json
+  excluidoPorId   String        @map("excluido_por_id")
+  excluidoPorNome String        @map("excluido_por_nome")
+  excluidoEm      DateTime      @default(now()) @map("excluido_em")
+
+  @@index([obraId, excluidoEm])
+  @@index([relatorioId])
+  @@map("relatorios_backup")
+}
+
 model PasswordReset {
   id        String   @id @default(cuid())
   usuarioId String
