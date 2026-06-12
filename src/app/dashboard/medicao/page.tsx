@@ -27,23 +27,11 @@ interface Obra {
   clienteNome: string | null;
 }
 
-interface RelatorioSalvo {
+interface RelatorioResumo {
   id: string;
   periodoInicio: string;
   periodoFim: string;
-  acumuladoTotal?: number | string | null;
-  observacoesGerais?: string | null;
-  modoGrafico?: ModoGraficoMedicao;
-  clienteNome?: string | null;
-  itens: {
-    item?: string | null;
-    descricao: string;
-    valorTotal: number | string;
-    valorPrevisto: number | string;
-    valorRealizado: number | string;
-    mostrarNoRelatorio: boolean;
-    observacao?: string | null;
-  }[];
+  itens?: unknown[];
 }
 
 interface ItemLinha extends ItemMedicaoInput {
@@ -75,7 +63,7 @@ export default function MedicaoPage() {
   const [observacoesGerais, setObservacoesGerais] = useState("");
   const [modoGrafico, setModoGrafico] = useState<ModoGraficoMedicao>("POR_SERVICO");
   const [itens, setItens] = useState<ItemLinha[]>([novoItem()]);
-  const [salvos, setSalvos] = useState<RelatorioSalvo[]>([]);
+  const [salvos, setSalvos] = useState<RelatorioResumo[]>([]);
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -109,15 +97,24 @@ export default function MedicaoPage() {
     if (obra) setClienteNome(obra.clienteNome || "");
   }, [obraId, obra]);
 
-  useEffect(() => {
+  async function listarSalvos() {
     if (!obraId) {
       setSalvos([]);
       return;
     }
-    fetch(`/api/relatorios-medicao?obraId=${obraId}`)
-      .then((r) => r.json())
-      .then((data) => (Array.isArray(data) ? setSalvos(data) : setSalvos([])));
-  }, [obraId, mensagem]);
+    const res = await fetch(`/api/relatorios-medicao?obraId=${obraId}`);
+    const data = await res.json();
+    if (!res.ok) {
+      setSalvos([]);
+      setMensagem(data.error || "Erro ao listar relatórios salvos");
+      return;
+    }
+    setSalvos(Array.isArray(data) ? data : []);
+  }
+
+  useEffect(() => {
+    listarSalvos();
+  }, [obraId]);
 
   function atualizarItem(idLocal: string, patch: Partial<ItemLinha>) {
     setItens((prev) => prev.map((i) => (i.idLocal === idLocal ? { ...i, ...patch } : i)));
@@ -127,27 +124,80 @@ export default function MedicaoPage() {
     setItens((prev) => (prev.length <= 1 ? prev : prev.filter((i) => i.idLocal !== idLocal)));
   }
 
-  function carregarRelatorio(r: RelatorioSalvo) {
-    setRelatorioId(r.id);
-    setDataInicio(r.periodoInicio.slice(0, 10));
-    setDataFim(r.periodoFim.slice(0, 10));
-    setModoPeriodo("personalizado");
-    setAcumuladoTotal(r.acumuladoTotal != null ? String(r.acumuladoTotal) : "");
-    setObservacoesGerais(r.observacoesGerais || "");
-    setModoGrafico(r.modoGrafico || "POR_SERVICO");
-    if (r.clienteNome) setClienteNome(r.clienteNome);
-    setItens(
-      r.itens.map((item) => ({
-        idLocal: crypto.randomUUID(),
-        item: item.item || "",
-        descricao: item.descricao,
-        valorTotal: Number(item.valorTotal),
-        valorPrevisto: Number(item.valorPrevisto),
-        valorRealizado: Number(item.valorRealizado),
-        mostrarNoRelatorio: item.mostrarNoRelatorio,
-        observacao: item.observacao || "",
-      }))
-    );
+  async function carregarRelatorio(id: string) {
+    setLoading(true);
+    setMensagem("");
+    try {
+      const res = await fetch(`/api/relatorios-medicao/${id}`);
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.error || "Erro ao carregar relatório");
+
+      setRelatorioId(r.id);
+      setDataInicio(r.periodoInicio.slice(0, 10));
+      setDataFim(r.periodoFim.slice(0, 10));
+      setModoPeriodo("personalizado");
+      setAcumuladoTotal(r.acumuladoTotal != null ? String(r.acumuladoTotal) : "");
+      setObservacoesGerais(r.observacoesGerais || "");
+      setModoGrafico(r.modoGrafico || "POR_SERVICO");
+      if (r.clienteNome) setClienteNome(r.clienteNome);
+      const itensCarregados = (r.itens || []).map(
+          (item: {
+            item?: string | null;
+            descricao: string;
+            valorTotal: number | string;
+            valorPrevisto: number | string;
+            valorRealizado: number | string;
+            mostrarNoRelatorio: boolean;
+            observacao?: string | null;
+          }) => ({
+            idLocal: crypto.randomUUID(),
+            item: item.item || "",
+            descricao: item.descricao,
+            valorTotal: Number(item.valorTotal),
+            valorPrevisto: Number(item.valorPrevisto),
+            valorRealizado: Number(item.valorRealizado),
+            mostrarNoRelatorio: item.mostrarNoRelatorio,
+            observacao: item.observacao || "",
+          })
+        );
+      setItens(itensCarregados.length > 0 ? itensCarregados : [novoItem()]);
+      setMensagem("Relatório carregado.");
+    } catch (e) {
+      setMensagem(e instanceof Error ? e.message : "Erro ao carregar relatório");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function excluirRelatorio(id: string) {
+    const resumo = salvos.find((s) => s.id === id);
+    const periodo = resumo
+      ? `${new Date(resumo.periodoInicio).toLocaleDateString("pt-BR")} — ${new Date(resumo.periodoFim).toLocaleDateString("pt-BR")}`
+      : "este relatório";
+
+    if (
+      !confirm(
+        `Excluir o relatório de medição (${periodo})?\n\nUm backup será salvo no Supabase antes da exclusão.`
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setMensagem("");
+    try {
+      const res = await fetch(`/api/relatorios-medicao/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao excluir");
+
+      if (relatorioId === id) novoRelatorio();
+      setMensagem(data.message || "Relatório excluído.");
+      await listarSalvos();
+    } catch (e) {
+      setMensagem(e instanceof Error ? e.message : "Erro ao excluir");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function novoRelatorio() {
@@ -186,6 +236,7 @@ export default function MedicaoPage() {
     if (res.ok) {
       setRelatorioId(result.id);
       setMensagem("Relatório salvo!");
+      await listarSalvos();
     } else {
       setMensagem(result.error || "Erro ao salvar");
     }
@@ -301,28 +352,58 @@ export default function MedicaoPage() {
             </p>
           </div>
 
-          {salvos.length > 0 && (
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Carregar do Supabase
-              </label>
-              <select
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-                value={relatorioId || ""}
-                onChange={(e) => {
-                  const r = salvos.find((s) => s.id === e.target.value);
-                  if (r) carregarRelatorio(r);
-                  else novoRelatorio();
-                }}
-              >
-                <option value="">Novo relatório</option>
-                {salvos.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {new Date(s.periodoInicio).toLocaleDateString("pt-BR")} —{" "}
-                    {new Date(s.periodoFim).toLocaleDateString("pt-BR")} ({s.itens.length} itens)
-                  </option>
-                ))}
-              </select>
+          {obraId && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-slate-700">Relatórios salvos</p>
+                <Button type="button" variant="ghost" onClick={novoRelatorio} className="text-xs">
+                  Novo relatório
+                </Button>
+              </div>
+              {salvos.length === 0 ? (
+                <p className="text-sm text-slate-500">Nenhum relatório salvo para esta obra.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {salvos.map((s) => (
+                    <li
+                      key={s.id}
+                      className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white p-3 ${
+                        relatorioId === s.id ? "border-blue-300 ring-1 ring-blue-200" : "border-slate-100"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-800">
+                          {new Date(s.periodoInicio).toLocaleDateString("pt-BR")} —{" "}
+                          {new Date(s.periodoFim).toLocaleDateString("pt-BR")}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {s.itens?.length ?? 0} item(ns)
+                          {relatorioId === s.id ? " · em edição" : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => carregarRelatorio(s.id)}
+                          disabled={loading}
+                          className="text-xs"
+                        >
+                          Abrir
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => excluirRelatorio(s.id)}
+                          className="rounded-lg p-2 text-red-500 hover:bg-red-50"
+                          title="Excluir relatório"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>
@@ -524,6 +605,15 @@ export default function MedicaoPage() {
           <Button variant="secondary" onClick={exportarPdf} disabled={!relatorioId}>
             <Download className="h-4 w-4" /> Exportar PDF
           </Button>
+          {relatorioId && (
+            <Button
+              variant="ghost"
+              onClick={() => excluirRelatorio(relatorioId)}
+              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" /> Excluir
+            </Button>
+          )}
         </div>
       </Card>
     </div>

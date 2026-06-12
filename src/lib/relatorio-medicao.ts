@@ -28,6 +28,13 @@ export function calcularPercentualExecutado(
   return Math.round((valorRealizado / valorPrevisto) * 10000) / 100;
 }
 
+export function calcularValorMedicao(
+  valorTotal: number,
+  percentualExecutado: number
+): number {
+  return Math.round(valorTotal * (percentualExecutado / 100) * 100) / 100;
+}
+
 export function calcularItemMedicao(item: ItemMedicaoInput): ItemMedicaoCalculado {
   return {
     ...item,

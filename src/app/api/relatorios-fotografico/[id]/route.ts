@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import { excluirRelatorioComBackup } from "@/lib/relatorio-backup";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -108,6 +109,17 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
-  await prisma.relatorio.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  const excluido = await excluirRelatorioComBackup(id, TipoRelatorio.FOTOGRAFICO, {
+    id: session.id,
+    nome: session.nome,
+  });
+
+  if (!excluido) {
+    return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    message: "Relatório excluído. Backup salvo no Supabase.",
+  });
 }

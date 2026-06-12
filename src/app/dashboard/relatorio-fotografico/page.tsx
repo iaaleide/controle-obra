@@ -7,7 +7,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
 import { SpeechTextarea } from "@/components/diario/SpeechTextarea";
 import { inicioSemanaAtual, fimSemanaAtual, type ModoPeriodo } from "@/lib/periodo-relatorio";
-import { Download, Save } from "lucide-react";
+import { Download, Save, Trash2 } from "lucide-react";
 
 interface Obra {
   id: string;
@@ -46,9 +46,9 @@ export default function RelatorioFotograficoPage() {
   const [clienteNome, setClienteNome] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [fotos, setFotos] = useState<FotoSlot[]>(slotsIniciais());
-  const [salvos, setSalvos] = useState<{ id: string; periodoInicio: string; periodoFim: string }[]>(
-    []
-  );
+  const [salvos, setSalvos] = useState<
+    { id: string; periodoInicio: string; periodoFim: string; fotos?: unknown[] }[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
@@ -65,15 +65,24 @@ export default function RelatorioFotograficoPage() {
     if (obra) setClienteNome(obra.clienteNome || "");
   }, [obraId, obra]);
 
-  useEffect(() => {
+  async function listarSalvos() {
     if (!obraId) {
       setSalvos([]);
       return;
     }
-    fetch(`/api/relatorios-fotografico?obraId=${obraId}`)
-      .then((r) => r.json())
-      .then((data) => (Array.isArray(data) ? setSalvos(data) : setSalvos([])));
-  }, [obraId, mensagem]);
+    const res = await fetch(`/api/relatorios-fotografico?obraId=${obraId}`);
+    const data = await res.json();
+    if (!res.ok) {
+      setSalvos([]);
+      setMensagem(data.error || "Erro ao listar relatórios salvos");
+      return;
+    }
+    setSalvos(Array.isArray(data) ? data : []);
+  }
+
+  useEffect(() => {
+    listarSalvos();
+  }, [obraId]);
 
   function atualizarFoto(index: number, patch: Partial<FotoSlot>) {
     setFotos((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)));
@@ -93,26 +102,66 @@ export default function RelatorioFotograficoPage() {
   }
 
   async function carregarRelatorio(id: string) {
-    const res = await fetch(`/api/relatorios-fotografico/${id}`);
-    const r = await res.json();
-    if (!res.ok) return;
+    setLoading(true);
+    setMensagem("");
+    try {
+      const res = await fetch(`/api/relatorios-fotografico/${id}`);
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.error || "Erro ao carregar relatório");
 
-    setRelatorioId(r.id);
-    setDataInicio(r.periodoInicio.slice(0, 10));
-    setDataFim(r.periodoFim.slice(0, 10));
-    setClienteNome(r.clienteNome || obra?.clienteNome || "");
-    setObservacoes(r.observacoesGerais || "");
+      setRelatorioId(r.id);
+      setDataInicio(r.periodoInicio.slice(0, 10));
+      setDataFim(r.periodoFim.slice(0, 10));
+      setClienteNome(r.clienteNome || obra?.clienteNome || "");
+      setObservacoes(r.observacoesGerais || "");
 
-    const slots = slotsIniciais();
-    r.fotos.forEach((f: { ordem: number; imagemBase64?: string; legenda?: string }) => {
-      if (f.ordem < MAX_FOTOS) {
-        slots[f.ordem] = {
-          imagemBase64: f.imagemBase64 || "",
-          legenda: f.legenda || "",
-        };
-      }
-    });
-    setFotos(slots);
+      const slots = slotsIniciais();
+      (r.fotos || []).forEach((f: { ordem: number; imagemBase64?: string; legenda?: string }) => {
+        if (f.ordem < MAX_FOTOS) {
+          slots[f.ordem] = {
+            imagemBase64: f.imagemBase64 || "",
+            legenda: f.legenda || "",
+          };
+        }
+      });
+      setFotos(slots);
+      setMensagem("Relatório carregado.");
+    } catch (e) {
+      setMensagem(e instanceof Error ? e.message : "Erro ao carregar relatório");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function excluirRelatorio(id: string) {
+    const resumo = salvos.find((s) => s.id === id);
+    const periodo = resumo
+      ? `${new Date(resumo.periodoInicio).toLocaleDateString("pt-BR")} — ${new Date(resumo.periodoFim).toLocaleDateString("pt-BR")}`
+      : "este relatório";
+
+    if (
+      !confirm(
+        `Excluir o relatório fotográfico (${periodo})?\n\nUm backup será salvo no Supabase antes da exclusão.`
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setMensagem("");
+    try {
+      const res = await fetch(`/api/relatorios-fotografico/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao excluir");
+
+      if (relatorioId === id) novoRelatorio();
+      setMensagem(data.message || "Relatório excluído.");
+      await listarSalvos();
+    } catch (e) {
+      setMensagem(e instanceof Error ? e.message : "Erro ao excluir");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function salvar() {
@@ -147,6 +196,7 @@ export default function RelatorioFotograficoPage() {
     if (res.ok) {
       setRelatorioId(result.id);
       setMensagem("Relatório salvo!");
+      await listarSalvos();
     } else {
       setMensagem(result.error || "Erro ao salvar");
     }
@@ -207,27 +257,60 @@ export default function RelatorioFotograficoPage() {
             onChange={(e) => setClienteNome(e.target.value)}
           />
 
-          {salvos.length > 0 && (
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Carregar salvo
-              </label>
-              <select
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
-                value={relatorioId || ""}
-                onChange={(e) => {
-                  if (e.target.value) carregarRelatorio(e.target.value);
-                  else novoRelatorio();
-                }}
-              >
-                <option value="">Novo relatório</option>
-                {salvos.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {new Date(s.periodoInicio).toLocaleDateString("pt-BR")} —{" "}
-                    {new Date(s.periodoFim).toLocaleDateString("pt-BR")}
-                  </option>
-                ))}
-              </select>
+          {obraId && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-slate-700">Relatórios salvos</p>
+                <Button type="button" variant="ghost" onClick={novoRelatorio} className="text-xs">
+                  Novo relatório
+                </Button>
+              </div>
+              {salvos.length === 0 ? (
+                <p className="text-sm text-slate-500">Nenhum relatório salvo para esta obra.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {salvos.map((s) => (
+                    <li
+                      key={s.id}
+                      className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white p-3 ${
+                        relatorioId === s.id ? "border-blue-300 ring-1 ring-blue-200" : "border-slate-100"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-800">
+                          {new Date(s.periodoInicio).toLocaleDateString("pt-BR")} —{" "}
+                          {new Date(s.periodoFim).toLocaleDateString("pt-BR")}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {(s.fotos || []).filter(
+                            (f) => typeof f === "object" && f !== null && "imagemBase64" in f && f.imagemBase64
+                          ).length}{" "}
+                          foto(s)
+                          {relatorioId === s.id ? " · em edição" : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => carregarRelatorio(s.id)}
+                          className="text-xs"
+                        >
+                          Abrir
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => excluirRelatorio(s.id)}
+                          className="rounded-lg p-2 text-red-500 hover:bg-red-50"
+                          title="Excluir relatório"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
@@ -311,6 +394,15 @@ export default function RelatorioFotograficoPage() {
           <Button variant="secondary" onClick={exportarPdf} disabled={!relatorioId}>
             <Download className="h-4 w-4" /> Exportar PDF
           </Button>
+          {relatorioId && (
+            <Button
+              variant="ghost"
+              onClick={() => excluirRelatorio(relatorioId)}
+              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" /> Excluir
+            </Button>
+          )}
         </div>
       </Card>
     </div>

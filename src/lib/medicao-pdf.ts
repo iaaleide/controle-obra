@@ -7,6 +7,7 @@ import {
 import {
   calcularPercentuaisResumoGeral,
   calcularTotaisItens,
+  calcularValorMedicao,
   formatarMoeda,
   formatarPercentual,
   formatarPeriodo,
@@ -122,20 +123,36 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
 
   const body =
     itensVisiveis.length > 0
-      ? itensVisiveis.map((item) => [
-          item.item || "—",
-          item.descricao,
-          formatarMoeda(Number(item.valorTotal)),
-          formatarPercentual(Number(item.valorPrevisto)),
-          formatarPercentual(Number(item.valorRealizado)),
-          `${Number(item.percentualExecutado).toFixed(1)}%`,
-          item.observacao || "—",
-        ])
-      : [["—", "Nenhum item", "—", "—", "—", "—", "—"]];
+      ? itensVisiveis.map((item) => {
+          const valorMedicao = calcularValorMedicao(
+            Number(item.valorTotal),
+            Number(item.percentualExecutado)
+          );
+          return [
+            item.item || "—",
+            item.descricao,
+            formatarMoeda(Number(item.valorTotal)),
+            formatarPercentual(Number(item.valorPrevisto)),
+            formatarPercentual(Number(item.valorRealizado)),
+            `${Number(item.percentualExecutado).toFixed(1)}%`,
+            formatarMoeda(valorMedicao),
+            item.observacao || "—",
+          ];
+        })
+      : [["—", "Nenhum item", "—", "—", "—", "—", "—", "—"]];
+
+  const totalValorMedicao = itensVisiveis.reduce(
+    (s, item) =>
+      s +
+      calcularValorMedicao(Number(item.valorTotal), Number(item.percentualExecutado)),
+    0
+  );
 
   autoTable(doc, {
     startY: y,
-    head: [["Item", "Descrição", "V. Total", "% Prev.", "% Real.", "% Exec.", "Obs."]],
+    head: [
+      ["Item", "Descrição", "V. Total", "% Prev.", "% Real.", "% Exec.", "V. Medição", "Obs."],
+    ],
     body,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [37, 99, 235], textColor: 255 },
@@ -186,6 +203,7 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
     startY: y,
     body: [
       ["Total Valor Total", formatarMoeda(totais.valorTotal)],
+      ["Total Valor Medição", formatarMoeda(totalValorMedicao)],
       ["% Previsto (geral)", formatarPercentual(resumoPct.percentualPrevisto)],
       ["% Realizado (geral)", formatarPercentual(resumoPct.percentualRealizado)],
       [
