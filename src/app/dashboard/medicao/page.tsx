@@ -16,7 +16,10 @@ import {
   calcularTotaisItens,
   formatarMoeda,
   formatarPercentual,
+  normalizarOpcoesPdfMedicao,
+  OPCOES_PDF_MEDICAO_PADRAO,
   type ItemMedicaoInput,
+  type OpcoesPdfMedicao,
 } from "@/lib/relatorio-medicao";
 import { inicioSemanaAtual, fimSemanaAtual, type ModoPeriodo } from "@/lib/periodo-relatorio";
 import type { ModoGraficoMedicao } from "@prisma/client";
@@ -71,6 +74,7 @@ export default function MedicaoPage() {
   const [acumuladoTotal, setAcumuladoTotal] = useState(0);
   const [observacoesGerais, setObservacoesGerais] = useState("");
   const [modoGrafico, setModoGrafico] = useState<ModoGraficoMedicao>("POR_SERVICO");
+  const [opcoesPdf, setOpcoesPdf] = useState<OpcoesPdfMedicao>(OPCOES_PDF_MEDICAO_PADRAO);
   const [itens, setItens] = useState<ItemLinha[]>([novoItem()]);
   const [salvos, setSalvos] = useState<RelatorioResumo[]>([]);
   const [user, setUser] = useState<User | null>(null);
@@ -160,6 +164,7 @@ export default function MedicaoPage() {
       setAcumuladoTotal(r.acumuladoTotal != null ? Number(r.acumuladoTotal) : 0);
       setObservacoesGerais(r.observacoesGerais || "");
       setModoGrafico(r.modoGrafico || "POR_SERVICO");
+      setOpcoesPdf(normalizarOpcoesPdfMedicao(r.opcoesPdfMedicao));
       if (r.clienteNome) setClienteNome(r.clienteNome);
       const itensCarregados = (r.itens || []).map(
           (item: {
@@ -227,7 +232,12 @@ export default function MedicaoPage() {
     setAcumuladoTotal(0);
     setObservacoesGerais("");
     setModoGrafico("POR_SERVICO");
+    setOpcoesPdf({ ...OPCOES_PDF_MEDICAO_PADRAO });
     if (obra) setClienteNome(obra.clienteNome || "");
+  }
+
+  function atualizarOpcaoPdf<K extends keyof OpcoesPdfMedicao>(chave: K, valor: boolean) {
+    setOpcoesPdf((prev) => ({ ...prev, [chave]: valor }));
   }
 
   async function persistirRelatorio(): Promise<string | null> {
@@ -241,6 +251,7 @@ export default function MedicaoPage() {
       acumuladoTotal: acumuladoTotal > 0 ? acumuladoTotal : null,
       observacoesGerais,
       modoGrafico,
+      opcoesPdfMedicao: opcoesPdf,
       itens: itensCalculados,
     };
 
@@ -433,6 +444,86 @@ export default function MedicaoPage() {
             </p>
           </div>
 
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="mb-2 text-sm font-medium text-slate-700">Exibição no PDF</p>
+            <p className="mb-3 text-xs text-slate-500">
+              Marque o que deve aparecer na tabela e nos gráficos do relatório exportado.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Tabela
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  {(
+                    [
+                      ["tabelaPrevisto", "% Previsto"],
+                      ["tabelaRealizado", "% Realizado"],
+                      ["tabelaExecutado", "% Executado"],
+                      ["tabelaValorMedicao", "V. Medição"],
+                    ] as const
+                  ).map(([chave, rotulo]) => (
+                    <label key={chave} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={opcoesPdf[chave]}
+                        onChange={(e) => atualizarOpcaoPdf(chave, e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                      {rotulo}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Gráficos por atividade
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  {(
+                    [
+                      ["graficoPrevisto", "% Previsto"],
+                      ["graficoRealizado", "% Realizado"],
+                    ] as const
+                  ).map(([chave, rotulo]) => (
+                    <label key={chave} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={opcoesPdf[chave]}
+                        onChange={(e) => atualizarOpcaoPdf(chave, e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                      {rotulo}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Resumo geral
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  {(
+                    [
+                      ["resumoPrevisto", "% Previsto"],
+                      ["resumoRealizado", "% Realizado"],
+                    ] as const
+                  ).map(([chave, rotulo]) => (
+                    <label key={chave} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={opcoesPdf[chave]}
+                        onChange={(e) => atualizarOpcaoPdf(chave, e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                      {rotulo}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {obraId && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -613,11 +704,14 @@ export default function MedicaoPage() {
                     />
                   </div>
                 </div>
-                {item.mostrarNoRelatorio !== false && (
+                {item.mostrarNoRelatorio !== false &&
+                  (opcoesPdf.graficoPrevisto || opcoesPdf.graficoRealizado) && (
                   <div className="flex items-center justify-center border-t border-slate-100 pt-2 lg:w-[104px] lg:shrink-0 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
                     <MiniBarrasLateral
                       previsto={calc.valorPrevisto}
                       realizado={calc.valorRealizado}
+                      mostrarPrevisto={opcoesPdf.graficoPrevisto}
+                      mostrarRealizado={opcoesPdf.graficoRealizado}
                     />
                   </div>
                 )}
@@ -626,7 +720,7 @@ export default function MedicaoPage() {
           })}
         </div>
 
-        {itensGrafico.length > 0 && (
+        {itensGrafico.length > 0 && (opcoesPdf.resumoPrevisto || opcoesPdf.resumoRealizado) && (
           <div className="mt-4 rounded-xl border border-slate-200 p-4">
             <p className="mb-2 text-sm font-medium text-slate-700">
               Resumo geral — Previsto x Realizado (total)
@@ -634,6 +728,8 @@ export default function MedicaoPage() {
             <BarChartResumoTotal
               previsto={resumoPercentual.percentualPrevisto}
               realizado={resumoPercentual.percentualRealizado}
+              mostrarPrevisto={opcoesPdf.resumoPrevisto}
+              mostrarRealizado={opcoesPdf.resumoRealizado}
               height={120}
             />
           </div>

@@ -233,6 +233,7 @@ model Relatorio {
   acumuladoTotal    Decimal?           @map("acumulado_total") @db.Decimal(14, 2)
   observacoesGerais String?            @map("observacoes_gerais") @db.Text
   modoGrafico       ModoGraficoMedicao @default(POR_SERVICO) @map("modo_grafico")
+  opcoesPdfMedicao  Json?              @map("opcoes_pdf_medicao")
   clienteNome       String?            @map("cliente_nome")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")

@@ -60,6 +60,7 @@ export async function PATCH(request: Request, { params }: Params) {
     acumuladoTotal,
     observacoesGerais,
     modoGrafico,
+    opcoesPdfMedicao,
     clienteNome,
     itens,
   } = body;
@@ -77,6 +78,7 @@ export async function PATCH(request: Request, { params }: Params) {
         }),
         ...(observacoesGerais !== undefined && { observacoesGerais: observacoesGerais || null }),
         ...(modoGrafico && { modoGrafico }),
+        ...(opcoesPdfMedicao !== undefined && { opcoesPdfMedicao }),
         ...(clienteNome !== undefined && { clienteNome: clienteNome || null }),
       },
     });

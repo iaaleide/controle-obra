@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     acumuladoTotal,
     observacoesGerais,
     modoGrafico,
+    opcoesPdfMedicao,
     clienteNome,
     itens,
   } = body;
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
     acumuladoTotal,
     observacoesGerais,
     modoGrafico,
+    opcoesPdfMedicao,
     clienteNome,
     itens: listaItens,
   });

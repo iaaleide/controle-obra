@@ -33,6 +33,7 @@ export function montarRelatorioFotograficoParaPdf(
     acumuladoTotal: null,
     observacoesGerais: payload.observacoesGerais ?? null,
     modoGrafico: "POR_SERVICO",
+    opcoesPdfMedicao: null,
     clienteNome: payload.clienteNome ?? null,
     createdAt: new Date(),
     updatedAt: new Date(),

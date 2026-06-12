@@ -3,6 +3,7 @@ import type { ModoGraficoMedicao, Obra } from "@prisma/client";
 import {
   calcularItemMedicao,
   type ItemMedicaoInput,
+  type OpcoesPdfMedicao,
   type RelatorioMedicaoCompleto,
 } from "@/lib/relatorio-medicao";
 
@@ -13,6 +14,7 @@ export type PayloadMedicaoPdf = {
   acumuladoTotal?: number | null;
   observacoesGerais?: string | null;
   modoGrafico?: ModoGraficoMedicao;
+  opcoesPdfMedicao?: OpcoesPdfMedicao;
   clienteNome?: string | null;
   itens: ItemMedicaoInput[];
 };
@@ -48,6 +50,7 @@ export function montarRelatorioMedicaoParaPdf(
       payload.acumuladoTotal != null ? new Prisma.Decimal(payload.acumuladoTotal) : null,
     observacoesGerais: payload.observacoesGerais ?? null,
     modoGrafico: payload.modoGrafico ?? "POR_SERVICO",
+    opcoesPdfMedicao: payload.opcoesPdfMedicao ?? null,
     clienteNome: payload.clienteNome ?? null,
     createdAt: new Date(),
     updatedAt: new Date(),

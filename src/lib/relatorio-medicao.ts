@@ -15,6 +15,43 @@ export type ItemMedicaoCalculado = ItemMedicaoInput & {
   percentualExecutado: number;
 };
 
+export type OpcoesPdfMedicao = {
+  tabelaPrevisto: boolean;
+  tabelaRealizado: boolean;
+  tabelaExecutado: boolean;
+  tabelaValorMedicao: boolean;
+  graficoPrevisto: boolean;
+  graficoRealizado: boolean;
+  resumoPrevisto: boolean;
+  resumoRealizado: boolean;
+};
+
+export const OPCOES_PDF_MEDICAO_PADRAO: OpcoesPdfMedicao = {
+  tabelaPrevisto: true,
+  tabelaRealizado: true,
+  tabelaExecutado: true,
+  tabelaValorMedicao: true,
+  graficoPrevisto: true,
+  graficoRealizado: true,
+  resumoPrevisto: true,
+  resumoRealizado: true,
+};
+
+export function normalizarOpcoesPdfMedicao(raw: unknown): OpcoesPdfMedicao {
+  if (!raw || typeof raw !== "object") return { ...OPCOES_PDF_MEDICAO_PADRAO };
+  const o = raw as Partial<OpcoesPdfMedicao>;
+  return {
+    tabelaPrevisto: o.tabelaPrevisto ?? OPCOES_PDF_MEDICAO_PADRAO.tabelaPrevisto,
+    tabelaRealizado: o.tabelaRealizado ?? OPCOES_PDF_MEDICAO_PADRAO.tabelaRealizado,
+    tabelaExecutado: o.tabelaExecutado ?? OPCOES_PDF_MEDICAO_PADRAO.tabelaExecutado,
+    tabelaValorMedicao: o.tabelaValorMedicao ?? OPCOES_PDF_MEDICAO_PADRAO.tabelaValorMedicao,
+    graficoPrevisto: o.graficoPrevisto ?? OPCOES_PDF_MEDICAO_PADRAO.graficoPrevisto,
+    graficoRealizado: o.graficoRealizado ?? OPCOES_PDF_MEDICAO_PADRAO.graficoRealizado,
+    resumoPrevisto: o.resumoPrevisto ?? OPCOES_PDF_MEDICAO_PADRAO.resumoPrevisto,
+    resumoRealizado: o.resumoRealizado ?? OPCOES_PDF_MEDICAO_PADRAO.resumoRealizado,
+  };
+}
+
 export type RelatorioMedicaoCompleto = Relatorio & {
   obra: Obra;
   itens: ItemRelatorio[];

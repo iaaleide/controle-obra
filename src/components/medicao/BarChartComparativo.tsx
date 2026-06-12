@@ -16,35 +16,48 @@ import { formatarPercentual } from "@/lib/relatorio-medicao";
 interface MiniBarrasProps {
   previsto: number;
   realizado: number;
+  mostrarPrevisto?: boolean;
+  mostrarRealizado?: boolean;
 }
 
 /** Barras horizontais mínimas — lateral do serviço (sem Recharts) */
-export function MiniBarrasLateral({ previsto, realizado }: MiniBarrasProps) {
+export function MiniBarrasLateral({
+  previsto,
+  realizado,
+  mostrarPrevisto = true,
+  mostrarRealizado = true,
+}: MiniBarrasProps) {
   const largura = (v: number) => `${Math.min(100, Math.max(0, v))}%`;
+
+  if (!mostrarPrevisto && !mostrarRealizado) return null;
 
   return (
     <div
       className="flex w-[92px] shrink-0 flex-col justify-center gap-1.5"
       title={`% Previsto: ${formatarPercentual(previsto)} · % Realizado: ${formatarPercentual(realizado)}`}
     >
-      <div className="flex items-center gap-1">
-        <span className="w-6 shrink-0 text-[8px] font-medium text-blue-600">Prev</span>
-        <div className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-slate-200">
-          <div
-            className="h-full rounded-sm bg-blue-500 transition-all"
-            style={{ width: largura(previsto) }}
-          />
+      {mostrarPrevisto && (
+        <div className="flex items-center gap-1">
+          <span className="w-6 shrink-0 text-[8px] font-medium text-blue-600">Prev</span>
+          <div className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-slate-200">
+            <div
+              className="h-full rounded-sm bg-blue-500 transition-all"
+              style={{ width: largura(previsto) }}
+            />
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="w-6 shrink-0 text-[8px] font-medium text-green-600">Real</span>
-        <div className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-slate-200">
-          <div
-            className="h-full rounded-sm bg-green-500 transition-all"
-            style={{ width: largura(realizado) }}
-          />
+      )}
+      {mostrarRealizado && (
+        <div className="flex items-center gap-1">
+          <span className="w-6 shrink-0 text-[8px] font-medium text-green-600">Real</span>
+          <div className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-sm bg-slate-200">
+            <div
+              className="h-full rounded-sm bg-green-500 transition-all"
+              style={{ width: largura(realizado) }}
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -126,14 +139,28 @@ interface ResumoTotalProps {
   previsto: number;
   realizado: number;
   height?: number;
+  mostrarPrevisto?: boolean;
+  mostrarRealizado?: boolean;
 }
 
 /** Resumo geral em % — média ponderada, não por item */
-export function BarChartResumoTotal({ previsto, realizado, height = 100 }: ResumoTotalProps) {
+export function BarChartResumoTotal({
+  previsto,
+  realizado,
+  height = 100,
+  mostrarPrevisto = true,
+  mostrarRealizado = true,
+}: ResumoTotalProps) {
   const data = [
-    { nome: "% Previsto (geral)", valor: previsto, fill: "#3b82f6" },
-    { nome: "% Realizado (geral)", valor: realizado, fill: "#22c55e" },
+    ...(mostrarPrevisto
+      ? [{ nome: "% Previsto (geral)", valor: previsto, fill: "#3b82f6" }]
+      : []),
+    ...(mostrarRealizado
+      ? [{ nome: "% Realizado (geral)", valor: realizado, fill: "#22c55e" }]
+      : []),
   ];
+
+  if (data.length === 0) return null;
 
   return (
     <div className="w-full" style={{ minHeight: height }}>

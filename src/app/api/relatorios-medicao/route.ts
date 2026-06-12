@@ -46,6 +46,7 @@ export async function POST(request: Request) {
     acumuladoTotal,
     observacoesGerais,
     modoGrafico,
+    opcoesPdfMedicao,
     clienteNome,
     itens,
   } = body;
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
         acumuladoTotal: acumuladoTotal != null ? acumuladoTotal : null,
         observacoesGerais: observacoesGerais || null,
         modoGrafico: modoGrafico || "POR_SERVICO",
+        opcoesPdfMedicao: opcoesPdfMedicao ?? undefined,
         clienteNome: clienteNome || null,
       },
     });

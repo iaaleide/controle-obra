@@ -165,7 +165,7 @@ function parseLinhaMedicao(linha: string): ItemMedicaoInput | null {
   if (!limpa || REGEX_PARAR.test(limpa) || ehCabecalho(limpa)) return null;
 
   const colunas = limpa.split(/\t+/);
-  if (colunas.length >= 4) {
+  if (colunas.length >= 5) {
     const item = mapearRegistroParaItem(
       {
         Item: colunas[0],
@@ -174,6 +174,17 @@ function parseLinhaMedicao(linha: string): ItemMedicaoInput | null {
         "Valor Previsto": colunas[3],
         "Valor Realizado": colunas[4],
         Observação: colunas[6] || colunas[5] || "",
+      },
+      0
+    );
+    if (item?.descricao) return item;
+  } else if (colunas.length === 4) {
+    const item = mapearRegistroParaItem(
+      {
+        Item: colunas[0],
+        Descrição: colunas[1],
+        "Valor Total": colunas[2],
+        "Valor Previsto": colunas[3],
       },
       0
     );
