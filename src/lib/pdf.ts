@@ -18,7 +18,7 @@ export function linhasRelatorioVisiveis(dados: RelatorioSemanal): RelatorioLinha
   return dados.linhas.filter((l) => l.diasTrabalhados > 0);
 }
 
-export const RODAPE_RELATORIO = "Desenvolvido por Atômica Engenharia®";
+export const RODAPE_RELATORIO = "Software desenvolvido por Atômica Engenharia®";
 
 export function textoRelatorioWhatsApp(dados: RelatorioSemanal): string {
   const linhas = linhasRelatorioVisiveis(dados);

@@ -3,11 +3,13 @@ import { getSession } from "@/lib/auth";
 import { temPermissao } from "@/lib/permissions";
 import { Card } from "@/components/ui/Card";
 import {
+  BarChart3,
   Building2,
   CalendarCheck,
   Camera,
   Coins,
   FileText,
+  ImageIcon,
   Users,
   UserRound,
   Wrench,
@@ -77,6 +79,20 @@ export default async function DashboardPage() {
       desc: "Cadastro e empréstimo por obra",
       icon: Wrench,
       show: temPermissao(session.perfil, "gerenciar_ferramentas"),
+    },
+    {
+      href: "/dashboard/medicao",
+      label: "Medição",
+      desc: "Relatório de medição com gráficos e Excel",
+      icon: BarChart3,
+      show: temPermissao(session.perfil, "gerenciar_relatorios_medicao"),
+    },
+    {
+      href: "/dashboard/relatorio-fotografico",
+      label: "Relatório fotográfico",
+      desc: "Fotos por período com exportação PDF",
+      icon: ImageIcon,
+      show: temPermissao(session.perfil, "gerenciar_relatorios_fotografico"),
     },
   ].filter((c) => c.show);
 

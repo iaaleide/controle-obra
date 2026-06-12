@@ -23,7 +23,9 @@ export type Permissao =
   | "alocar_obras_visitante"
   | "gerenciar_custos"
   | "gerenciar_diario_obra"
-  | "gerenciar_ferramentas";
+  | "gerenciar_ferramentas"
+  | "gerenciar_relatorios_medicao"
+  | "gerenciar_relatorios_fotografico";
 
 const PERMISSOES: Record<Perfil, Permissao[]> = {
   ADMIN: [
@@ -50,6 +52,8 @@ const PERMISSOES: Record<Perfil, Permissao[]> = {
     "gerenciar_custos",
     "gerenciar_diario_obra",
     "gerenciar_ferramentas",
+    "gerenciar_relatorios_medicao",
+    "gerenciar_relatorios_fotografico",
   ],
   MESTRE: [
     "ver_dashboard",

@@ -24,6 +24,16 @@ enum TipoCustoFuncionario {
   PESSOA
 }
 
+enum ModoGraficoMedicao {
+  POR_SERVICO
+  CONSOLIDADO
+}
+
+enum TipoRelatorio {
+  MEDICAO
+  FOTOGRAFICO
+}
+
 model Usuario {
   id           String   @id @default(cuid())
   login        String   @unique
@@ -56,6 +66,7 @@ model Obra {
   visitantes  UsuarioObra[]
   diarios     DiarioObra[]
   emprestimos FerramentaEmprestimo[]
+  relatorios  Relatorio[]
 }
 
 model UsuarioObra {
@@ -211,6 +222,59 @@ model FerramentaEmprestimo {
 
   @@index([obraId])
   @@index([ferramentaId])
+}
+
+model Relatorio {
+  id                String             @id @default(uuid()) @db.Uuid
+  obraId            String             @map("obra_id")
+  tipo              TipoRelatorio      @default(MEDICAO)
+  periodoInicio     DateTime           @map("periodo_inicio") @db.Date
+  periodoFim        DateTime           @map("periodo_fim") @db.Date
+  acumuladoTotal    Decimal?           @map("acumulado_total") @db.Decimal(14, 2)
+  observacoesGerais String?            @map("observacoes_gerais") @db.Text
+  modoGrafico       ModoGraficoMedicao @default(POR_SERVICO) @map("modo_grafico")
+  clienteNome       String?            @map("cliente_nome")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  obra  Obra            @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  itens ItemRelatorio[]
+  fotos FotoRelatorio[]
+
+  @@index([obraId, periodoInicio])
+  @@map("relatorios")
+}
+
+model ItemRelatorio {
+  id                  String  @id @default(uuid()) @db.Uuid
+  relatorioId         String  @map("relatorio_id") @db.Uuid
+  ordem               Int
+  item                String?
+  descricao           String
+  valorTotal          Decimal @map("valor_total") @db.Decimal(14, 2)
+  valorPrevisto       Decimal @map("valor_previsto") @db.Decimal(14, 2)
+  valorRealizado      Decimal @map("valor_realizado") @db.Decimal(14, 2)
+  percentualExecutado Decimal @map("percentual_executado") @db.Decimal(7, 2)
+  mostrarNoRelatorio  Boolean @default(true) @map("mostrar_no_relatorio")
+  observacao          String? @db.Text
+
+  relatorio Relatorio @relation(fields: [relatorioId], references: [id], onDelete: Cascade)
+
+  @@index([relatorioId])
+  @@map("itens_relatorio")
+}
+
+model FotoRelatorio {
+  id           String  @id @default(uuid()) @db.Uuid
+  relatorioId  String  @map("relatorio_id") @db.Uuid
+  ordem        Int
+  imagemBase64 String? @map("imagem_base64") @db.Text
+  legenda      String? @db.Text
+
+  relatorio Relatorio @relation(fields: [relatorioId], references: [id], onDelete: Cascade)
+
+  @@index([relatorioId])
+  @@map("fotos_relatorio")
 }
 
 model PasswordReset {

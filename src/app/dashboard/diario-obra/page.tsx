@@ -243,7 +243,7 @@ export default function DiarioObraPage() {
             </div>
 
             <p className="mt-8 text-center text-xs text-slate-400">
-              Desenvolvido por Atômica Engenharia®
+              Software desenvolvido por Atômica Engenharia®
             </p>
           </div>
         )}
