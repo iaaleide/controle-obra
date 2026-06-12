@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatarMoeda } from "@/lib/relatorio-medicao";
+import { formatarPercentual } from "@/lib/relatorio-medicao";
 
 interface Props {
   previsto: number;
@@ -20,7 +20,7 @@ interface Props {
   height?: number;
 }
 
-/** Gráfico horizontal Previsto x Realizado para uma atividade */
+/** Gráfico horizontal % Previsto x % Realizado por atividade */
 export function BarChartComparativo({
   previsto,
   realizado,
@@ -28,8 +28,8 @@ export function BarChartComparativo({
   height = 72,
 }: Props) {
   const data = [
-    { nome: "Previsto", valor: previsto, fill: "#3b82f6" },
-    { nome: "Realizado", valor: realizado, fill: "#22c55e" },
+    { nome: "% Previsto", valor: previsto, fill: "#3b82f6" },
+    { nome: "% Realizado", valor: realizado, fill: "#22c55e" },
   ];
 
   return (
@@ -47,9 +47,14 @@ export function BarChartComparativo({
             margin={{ top: 0, right: 8, left: 4, bottom: 0 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={(v) => formatarMoeda(v)} />
-            <YAxis type="category" dataKey="nome" width={64} tick={{ fontSize: 10 }} />
-            <Tooltip formatter={(value) => formatarMoeda(Number(value ?? 0))} />
+            <XAxis
+              type="number"
+              domain={[0, 100]}
+              tick={{ fontSize: 9 }}
+              tickFormatter={(v) => `${v}%`}
+            />
+            <YAxis type="category" dataKey="nome" width={80} tick={{ fontSize: 9 }} />
+            <Tooltip formatter={(value) => formatarPercentual(Number(value ?? 0))} />
             <Bar dataKey="valor" radius={[0, 4, 4, 0]}>
               {data.map((entry) => (
                 <Cell key={entry.nome} fill={entry.fill} />
@@ -68,11 +73,11 @@ interface ResumoTotalProps {
   height?: number;
 }
 
-/** Resumo geral — apenas totais, não por item */
+/** Resumo geral em % — média ponderada, não por item */
 export function BarChartResumoTotal({ previsto, realizado, height = 100 }: ResumoTotalProps) {
   const data = [
-    { nome: "Previsto (total)", valor: previsto, fill: "#3b82f6" },
-    { nome: "Realizado (total)", valor: realizado, fill: "#22c55e" },
+    { nome: "% Previsto (geral)", valor: previsto, fill: "#3b82f6" },
+    { nome: "% Realizado (geral)", valor: realizado, fill: "#22c55e" },
   ];
 
   return (
@@ -80,11 +85,16 @@ export function BarChartResumoTotal({ previsto, realizado, height = 100 }: Resum
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-          <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => formatarMoeda(v)} />
-          <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 11 }} />
-          <Tooltip formatter={(value) => formatarMoeda(Number(value ?? 0))} />
+          <XAxis
+            type="number"
+            domain={[0, 100]}
+            tick={{ fontSize: 10 }}
+            tickFormatter={(v) => `${v}%`}
+          />
+          <YAxis type="category" dataKey="nome" width={120} tick={{ fontSize: 10 }} />
+          <Tooltip formatter={(value) => formatarPercentual(Number(value ?? 0))} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="valor" name="Valor" radius={[0, 4, 4, 0]}>
+          <Bar dataKey="valor" name="Percentual" radius={[0, 4, 4, 0]}>
             {data.map((entry) => (
               <Cell key={entry.nome} fill={entry.fill} />
             ))}

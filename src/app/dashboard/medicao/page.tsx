@@ -11,8 +11,10 @@ import {
 } from "@/components/medicao/BarChartComparativo";
 import {
   calcularItemMedicao,
+  calcularPercentuaisResumoGeral,
   calcularTotaisItens,
   formatarMoeda,
+  formatarPercentual,
   type ItemMedicaoInput,
 } from "@/lib/relatorio-medicao";
 import { inicioSemanaAtual, fimSemanaAtual, type ModoPeriodo } from "@/lib/periodo-relatorio";
@@ -85,12 +87,16 @@ export default function MedicaoPage() {
     [itens]
   );
 
-  const totais = useMemo(
-    () =>
-      calcularTotaisItens(
-        itensCalculados.filter((i) => i.mostrarNoRelatorio !== false)
-      ),
+  const itensVisiveisCalc = useMemo(
+    () => itensCalculados.filter((i) => i.mostrarNoRelatorio !== false),
     [itensCalculados]
+  );
+
+  const totais = useMemo(() => calcularTotaisItens(itensVisiveisCalc), [itensVisiveisCalc]);
+
+  const resumoPercentual = useMemo(
+    () => calcularPercentuaisResumoGeral(itensVisiveisCalc),
+    [itensVisiveisCalc]
   );
 
   useEffect(() => {
@@ -199,7 +205,11 @@ export default function MedicaoPage() {
         }))
       );
       const origem = result.origem === "pdf" ? "PDF" : "Excel";
-      setMensagem(`${result.itens.length} item(ns) importado(s) do ${origem}`);
+      const avisoPrevisto =
+        result.origem === "pdf"
+          ? " Preencha % Previsto e % Realizado manualmente em cada linha."
+          : "";
+      setMensagem(`${result.itens.length} item(ns) importado(s) do ${origem}.${avisoPrevisto}`);
     } else {
       setMensagem(result.error || "Erro na importação");
     }
@@ -219,8 +229,8 @@ export default function MedicaoPage() {
     <div className="space-y-4">
       <Card title="Relatório de Medição">
         <p className="mb-4 text-sm text-slate-500">
-          Importe do Supabase, Excel ou PDF com tabela de serviços, edite e exporte com gráficos
-          Previsto x Realizado.
+          Importe do Supabase, Excel ou PDF (planilha orçamentária). Informe % Previsto e %
+          Realizado manualmente em cada atividade. Valor Total permanece em R$.
         </p>
 
         <div className="mb-4 space-y-3">
@@ -387,24 +397,28 @@ export default function MedicaoPage() {
                     }
                   />
                   <Input
-                    label="Valor Previsto"
+                    label="% Previsto"
                     type="number"
-                    step="0.01"
+                    min={0}
+                    max={100}
+                    step="0.1"
                     value={item.valorPrevisto || ""}
                     onChange={(e) =>
                       atualizarItem(item.idLocal, {
-                        valorPrevisto: parseFloat(e.target.value) || 0,
+                        valorPrevisto: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)),
                       })
                     }
                   />
                   <Input
-                    label="Valor Realizado"
+                    label="% Realizado"
                     type="number"
-                    step="0.01"
+                    min={0}
+                    max={100}
+                    step="0.1"
                     value={item.valorRealizado || ""}
                     onChange={(e) =>
                       atualizarItem(item.idLocal, {
-                        valorRealizado: parseFloat(e.target.value) || 0,
+                        valorRealizado: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)),
                       })
                     }
                   />
@@ -461,8 +475,8 @@ export default function MedicaoPage() {
               Resumo geral — Previsto x Realizado (total)
             </p>
             <BarChartResumoTotal
-              previsto={totais.valorPrevisto}
-              realizado={totais.valorRealizado}
+              previsto={resumoPercentual.percentualPrevisto}
+              realizado={resumoPercentual.percentualRealizado}
               height={120}
             />
           </div>
@@ -474,12 +488,12 @@ export default function MedicaoPage() {
             <strong>{formatarMoeda(totais.valorTotal)}</strong>
           </p>
           <p className="text-sm">
-            <span className="text-slate-500">Total Previsto:</span>{" "}
-            <strong>{formatarMoeda(totais.valorPrevisto)}</strong>
+            <span className="text-slate-500">% Previsto (geral):</span>{" "}
+            <strong>{formatarPercentual(resumoPercentual.percentualPrevisto)}</strong>
           </p>
           <p className="text-sm">
-            <span className="text-slate-500">Total Realizado:</span>{" "}
-            <strong>{formatarMoeda(totais.valorRealizado)}</strong>
+            <span className="text-slate-500">% Realizado (geral):</span>{" "}
+            <strong>{formatarPercentual(resumoPercentual.percentualRealizado)}</strong>
           </p>
         </div>
 

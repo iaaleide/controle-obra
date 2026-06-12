@@ -6,8 +6,8 @@ const COLUNAS = [
   "Item",
   "Descrição",
   "Valor Total",
-  "Valor Previsto",
-  "Valor Realizado",
+  "% Previsto",
+  "% Realizado",
   "Observação",
   "Mostrar no relatório",
 ] as const;
@@ -19,8 +19,8 @@ export function exportarItensExcel(itens: ItemMedicaoInput[]): Buffer {
       Item: item.item || "",
       Descrição: item.descricao,
       "Valor Total": item.valorTotal,
-      "Valor Previsto": item.valorPrevisto,
-      "Valor Realizado": item.valorRealizado,
+      "% Previsto": item.valorPrevisto,
+      "% Realizado": item.valorRealizado,
       "% Executado": calc.percentualExecutado,
       Observação: item.observacao || "",
       "Mostrar no relatório": item.mostrarNoRelatorio !== false ? "Sim" : "Não",
@@ -46,7 +46,7 @@ export function importarItensExcel(buffer: Buffer | ArrayBuffer): ItemMedicaoInp
 export function gerarModeloExcel(): Buffer {
   const ws = XLSX.utils.aoa_to_sheet([
     COLUNAS as unknown as string[],
-    ["1", "Exemplo de serviço", 10000, 8000, 4000, "", "Sim"],
+    ["1", "Exemplo de serviço", 10000, 80, 45, "", "Sim"],
   ]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Medição");

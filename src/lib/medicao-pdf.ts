@@ -5,8 +5,10 @@ import {
   desenharCabecalhoRelatorio,
 } from "@/lib/pdf-cabecalho";
 import {
+  calcularPercentuaisResumoGeral,
   calcularTotaisItens,
   formatarMoeda,
+  formatarPercentual,
   formatarPeriodo,
   type RelatorioMedicaoCompleto,
 } from "@/lib/relatorio-medicao";
@@ -24,7 +26,7 @@ function desenharGraficoBarrasHorizontal(
   width: number,
   dados: DadoGrafico
 ) {
-  const maxValor = Math.max(dados.previsto, dados.realizado, 1);
+  const maxValor = 100;
   const labelW = 52;
   const chartW = width - labelW - 4;
   const barH = 7;
@@ -45,8 +47,8 @@ function desenharGraficoBarrasHorizontal(
 
   doc.setFontSize(6);
   doc.setTextColor(100, 116, 139);
-  doc.text("Prev.", x, yPrev + 5);
-  doc.text("Real.", x, yReal + 5);
+  doc.text("% Prev.", x, yPrev + 5);
+  doc.text("% Real.", x, yReal + 5);
 
   doc.setDrawColor(226, 232, 240);
   doc.rect(baseX, yPrev, chartW, barH, "S");
@@ -59,8 +61,8 @@ function desenharGraficoBarrasHorizontal(
 
   doc.setFontSize(6);
   doc.setTextColor(71, 85, 105);
-  doc.text(formatarMoeda(dados.previsto), baseX + chartW + 2, yPrev + 5);
-  doc.text(formatarMoeda(dados.realizado), baseX + chartW + 2, yReal + 5);
+  doc.text(formatarPercentual(dados.previsto), baseX + chartW + 2, yPrev + 5);
+  doc.text(formatarPercentual(dados.realizado), baseX + chartW + 2, yReal + 5);
 
   return height;
 }
@@ -83,7 +85,7 @@ function desenharGraficoResumoTotal(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(30, 58, 95);
-  doc.text("Resumo geral — Previsto x Realizado (total)", 14, y);
+  doc.text("Resumo geral — % Previsto x % Realizado", 14, y);
   y += 8;
 
   const h = desenharGraficoBarrasHorizontal(doc, 14, y, pageWidth - 28, {
@@ -108,6 +110,7 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
 
   const itensVisiveis = relatorio.itens.filter((i) => i.mostrarNoRelatorio);
   const totais = calcularTotaisItens(itensVisiveis);
+  const resumoPct = calcularPercentuaisResumoGeral(itensVisiveis);
   const periodo = formatarPeriodo(relatorio.periodoInicio, relatorio.periodoFim);
   const graficoPorServico = relatorio.modoGrafico !== "CONSOLIDADO";
 
@@ -123,8 +126,8 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
           item.item || "—",
           item.descricao,
           formatarMoeda(Number(item.valorTotal)),
-          formatarMoeda(Number(item.valorPrevisto)),
-          formatarMoeda(Number(item.valorRealizado)),
+          formatarPercentual(Number(item.valorPrevisto)),
+          formatarPercentual(Number(item.valorRealizado)),
           `${Number(item.percentualExecutado).toFixed(1)}%`,
           item.observacao || "—",
         ])
@@ -132,7 +135,7 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
 
   autoTable(doc, {
     startY: y,
-    head: [["Item", "Descrição", "V. Total", "Previsto", "Realizado", "% Exec.", "Obs."]],
+    head: [["Item", "Descrição", "V. Total", "% Prev.", "% Real.", "% Exec.", "Obs."]],
     body,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [37, 99, 235], textColor: 255 },
@@ -166,7 +169,12 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
   }
 
   if (itensVisiveis.length > 0) {
-    y = desenharGraficoResumoTotal(doc, y, totais.valorPrevisto, totais.valorRealizado);
+    y = desenharGraficoResumoTotal(
+      doc,
+      y,
+      resumoPct.percentualPrevisto,
+      resumoPct.percentualRealizado
+    );
   }
 
   if (y > pageHeight - 50) {
@@ -178,8 +186,8 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
     startY: y,
     body: [
       ["Total Valor Total", formatarMoeda(totais.valorTotal)],
-      ["Total Previsto", formatarMoeda(totais.valorPrevisto)],
-      ["Total Realizado", formatarMoeda(totais.valorRealizado)],
+      ["% Previsto (geral)", formatarPercentual(resumoPct.percentualPrevisto)],
+      ["% Realizado (geral)", formatarPercentual(resumoPct.percentualRealizado)],
       [
         "Acumulado medido até o período",
         relatorio.acumuladoTotal != null

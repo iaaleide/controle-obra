@@ -57,6 +57,40 @@ export function formatarMoeda(valor: number): string {
   return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+export function formatarPercentual(valor: number): string {
+  return `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+}
+
+/** Média ponderada pelo Valor Total — para gráfico resumo geral em % */
+export function calcularPercentuaisResumoGeral(
+  itens: {
+    valorTotal: number | { toString(): string };
+    valorPrevisto: number | { toString(): string };
+    valorRealizado: number | { toString(): string };
+  }[]
+): { percentualPrevisto: number; percentualRealizado: number } {
+  if (itens.length === 0) return { percentualPrevisto: 0, percentualRealizado: 0 };
+
+  const pesoTotal = itens.reduce((s, i) => s + Number(i.valorTotal), 0);
+
+  if (pesoTotal <= 0) {
+    const n = itens.length;
+    return {
+      percentualPrevisto:
+        itens.reduce((s, i) => s + Number(i.valorPrevisto), 0) / n,
+      percentualRealizado:
+        itens.reduce((s, i) => s + Number(i.valorRealizado), 0) / n,
+    };
+  }
+
+  return {
+    percentualPrevisto:
+      itens.reduce((s, i) => s + Number(i.valorTotal) * Number(i.valorPrevisto), 0) / pesoTotal,
+    percentualRealizado:
+      itens.reduce((s, i) => s + Number(i.valorTotal) * Number(i.valorRealizado), 0) / pesoTotal,
+  };
+}
+
 export function formatarPeriodo(inicio: Date, fim: Date): string {
   const fmt = (d: Date) => d.toLocaleDateString("pt-BR");
   return `${fmt(inicio)} a ${fmt(fim)}`;
@@ -96,16 +130,17 @@ export function textoMedicaoWhatsApp(dados: {
   } else {
     for (const item of visiveis) {
       texto += `📌 ${item.item ? `${item.item} — ` : ""}${item.descricao}\n`;
-      texto += `   Total: ${formatarMoeda(item.valorTotal)} | Prev: ${formatarMoeda(item.valorPrevisto)} | Real: ${formatarMoeda(item.valorRealizado)}\n`;
+      texto += `   Total: ${formatarMoeda(item.valorTotal)} | Prev: ${formatarPercentual(item.valorPrevisto)} | Real: ${formatarPercentual(item.valorRealizado)}\n`;
       texto += `   Executado: *${item.percentualExecutado.toFixed(1)}%*\n`;
       if (item.observacao) texto += `   Obs: ${item.observacao}\n`;
     }
   }
 
   texto += `\n*Totais*\n`;
+  const resumoPct = calcularPercentuaisResumoGeral(visiveis);
   texto += `Valor total: ${formatarMoeda(totais.valorTotal)}\n`;
-  texto += `Previsto: ${formatarMoeda(totais.valorPrevisto)}\n`;
-  texto += `Realizado: ${formatarMoeda(totais.valorRealizado)}\n`;
+  texto += `% Previsto (geral): ${formatarPercentual(resumoPct.percentualPrevisto)}\n`;
+  texto += `% Realizado (geral): ${formatarPercentual(resumoPct.percentualRealizado)}\n`;
 
   if (dados.acumuladoTotal != null) {
     texto += `Acumulado medido: ${formatarMoeda(Number(dados.acumuladoTotal))}\n`;
