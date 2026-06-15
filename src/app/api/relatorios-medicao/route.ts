@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
-import { calcularItemMedicao, type ItemMedicaoInput } from "@/lib/relatorio-medicao";
+import { itensMedicaoParaCreateMany, type ItemMedicaoInput } from "@/lib/relatorio-medicao";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -82,21 +82,7 @@ export async function POST(request: Request) {
 
     if (listaItens.length > 0) {
       await tx.itemRelatorio.createMany({
-        data: listaItens.map((item, ordem) => {
-          const calc = calcularItemMedicao(item);
-          return {
-            relatorioId: criado.id,
-            ordem,
-            item: calc.item || null,
-            descricao: calc.descricao,
-            valorTotal: calc.valorTotal,
-            valorPrevisto: calc.valorPrevisto,
-            valorRealizado: calc.valorRealizado,
-            percentualExecutado: calc.percentualExecutado,
-            mostrarNoRelatorio: calc.mostrarNoRelatorio !== false,
-            observacao: calc.observacao || null,
-          };
-        }),
+        data: itensMedicaoParaCreateMany(criado.id, listaItens),
       });
     }
 

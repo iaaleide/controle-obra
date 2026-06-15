@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
 import { temPermissao } from "@/lib/permissions";
+import { useObras } from "@/hooks/useObras";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import { formatarCpf } from "@/lib/documento";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Perfil } from "@prisma/client";
@@ -31,9 +33,9 @@ interface User {
 }
 
 export default function FuncionariosPage() {
+  const { obras } = useObras();
+  const { user } = useSessionUser();
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [obras, setObras] = useState<Obra[]>([]);
-  const [user, setUser] = useState<User | null>(null);
   const [obraFiltro, setObraFiltro] = useState("todas");
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<Funcionario | null>(null);
@@ -52,15 +54,6 @@ export default function FuncionariosPage() {
   const podeEditar = user ? temPermissao(user.perfil, "editar_funcionario") : false;
   const podeExcluir = user ? temPermissao(user.perfil, "excluir_funcionario") : false;
 
-  async function carregar() {
-    const [resUser, resObras] = await Promise.all([
-      fetch("/api/auth/me"),
-      fetch("/api/obras"),
-    ]);
-    setUser(await resUser.json());
-    setObras(await resObras.json());
-  }
-
   async function carregarFuncionarios() {
     let url = "/api/funcionarios";
     if (obraFiltro === "sem-obra") url += "?semObra=true";
@@ -69,10 +62,6 @@ export default function FuncionariosPage() {
     const res = await fetch(url);
     setFuncionarios(await res.json());
   }
-
-  useEffect(() => {
-    carregar();
-  }, []);
 
   useEffect(() => {
     carregarFuncionarios();

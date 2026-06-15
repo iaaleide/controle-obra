@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { TipoRelatorio } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
-import { prisma } from "@/lib/prisma";
 import { gerarPdfRelatorioMedicao } from "@/lib/medicao-pdf";
 import { temPermissao } from "@/lib/permissions";
+import { buscarRelatorioMedicao } from "@/lib/relatorio-db";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -15,10 +14,8 @@ export async function GET(_request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const relatorio = await prisma.relatorio.findFirst({
-    where: { id, tipo: TipoRelatorio.MEDICAO },
-    include: { itens: { orderBy: { ordem: "asc" } }, obra: true },
-  });
+  const emitidoEm = new URL(_request.url).searchParams.get("emitidoEm");
+  const relatorio = await buscarRelatorioMedicao(id);
 
   if (!relatorio) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });
@@ -29,7 +26,7 @@ export async function GET(_request: Request, { params }: Params) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
-  const pdf = gerarPdfRelatorioMedicao(relatorio);
+  const pdf = gerarPdfRelatorioMedicao(relatorio, { emitidoEm });
   const nome = relatorio.obra.nome.replace(/\s+/g, "-");
 
   return new NextResponse(new Uint8Array(pdf), {

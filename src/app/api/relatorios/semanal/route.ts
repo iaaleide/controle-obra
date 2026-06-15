@@ -32,6 +32,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
+  const opcoes = { incluirSemPresenca, obra: acesso.obra };
+
   let relatorio;
 
   if (dataInicio && dataFim) {
@@ -39,10 +41,10 @@ export async function GET(request: Request) {
       obraId,
       new Date(dataInicio + "T00:00:00"),
       new Date(dataFim + "T23:59:59"),
-      { incluirSemPresenca }
+      opcoes
     );
   } else {
-    relatorio = await gerarRelatorioSemanal(obraId, undefined, { incluirSemPresenca });
+    relatorio = await gerarRelatorioSemanal(obraId, undefined, opcoes);
   }
 
   if (!relatorio) {

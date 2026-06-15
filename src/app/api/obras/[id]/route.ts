@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import { limparAlocacoesInvalidas } from "@/lib/alocacao-limpeza";
 
 export async function PUT(
   request: Request,
@@ -73,6 +74,7 @@ export async function DELETE(
   }
 
   await prisma.funcionarioObra.deleteMany({ where: { obraId: id } });
+  await limparAlocacoesInvalidas();
 
   const obra = await prisma.obra.update({
     where: { id },

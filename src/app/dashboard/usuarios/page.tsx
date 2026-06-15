@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/Badge";
 import { corPerfil, labelPerfil } from "@/lib/permissions";
 import { formatarExibicaoLocal } from "@/lib/telefone";
 import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
+import { useObras } from "@/hooks/useObras";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import { Plus, UserCog, Trash2, UserCheck, Pencil } from "lucide-react";
 
 interface Obra {
@@ -26,16 +28,12 @@ interface Usuario {
   obrasAlocadas?: { obra: Obra }[];
 }
 
-interface SessionUser {
-  id: string;
-}
-
 export default function UsuariosPage() {
+  const { obras } = useObras();
+  const { user: sessionUser } = useSessionUser();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [obras, setObras] = useState<Obra[]>([]);
   const [obraIds, setObraIds] = useState<string[]>([]);
   const [editObraIds, setEditObraIds] = useState<string[]>([]);
-  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [mostrarInativos, setMostrarInativos] = useState(false);
   const [login, setLogin] = useState("");
@@ -58,14 +56,8 @@ export default function UsuariosPage() {
   }
 
   async function carregar() {
-    const [resUsuarios, resMe, resObras] = await Promise.all([
-      fetch("/api/usuarios"),
-      fetch("/api/auth/me"),
-      fetch("/api/obras"),
-    ]);
+    const resUsuarios = await fetch("/api/usuarios");
     if (resUsuarios.ok) setUsuarios(await resUsuarios.json());
-    if (resMe.ok) setSessionUser(await resMe.json());
-    if (resObras.ok) setObras(await resObras.json());
   }
 
   useEffect(() => {

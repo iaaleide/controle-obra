@@ -52,6 +52,18 @@ export function SpeechTextarea({ label, value, onChange, rows = 2 }: SpeechTexta
     rec.onerror = () => setOuvindo(false);
     rec.onend = () => setOuvindo(false);
     recognitionRef.current = rec;
+
+    return () => {
+      rec.onresult = null;
+      rec.onerror = null;
+      rec.onend = null;
+      try {
+        rec.stop();
+      } catch {
+        /* já parado */
+      }
+      recognitionRef.current = null;
+    };
   }, []);
 
   function toggle() {

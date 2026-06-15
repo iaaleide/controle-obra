@@ -17,6 +17,7 @@ export async function GET(request: Request) {
   const obraId = searchParams.get("obraId");
   const dataInicio = searchParams.get("dataInicio");
   const dataFim = searchParams.get("dataFim");
+  const emitidoEm = searchParams.get("emitidoEm");
 
   if (!obraId) {
     return NextResponse.json({ error: "obraId é obrigatório" }, { status: 400 });
@@ -34,6 +35,8 @@ export async function GET(request: Request) {
   if (!relatorio) {
     return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });
   }
+
+  relatorio.emitidoEm = emitidoEm;
 
   const pdf = gerarPdfRelatorioCusto(relatorio);
   return new NextResponse(new Uint8Array(pdf), {

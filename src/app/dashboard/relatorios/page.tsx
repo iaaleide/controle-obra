@@ -12,55 +12,41 @@ import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector"
 import type { RelatorioSemanal } from "@/lib/pdf";
 import { RODAPE_RELATORIO } from "@/lib/pdf";
 import { temPermissao } from "@/lib/permissions";
+import { useObras } from "@/hooks/useObras";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import {
   aplicarParamsPeriodo,
+  aplicarEmitidoEm,
   fimSemanaAtual,
+  hojeIso,
   inicioSemanaAtual,
   type ModoPeriodo,
   validarPeriodo,
 } from "@/lib/periodo-relatorio";
 
-interface Obra {
-  id: string;
-  nome: string;
-}
-
-interface User {
-  perfil: "ADMIN" | "MESTRE" | "VISITANTE";
-  email?: string | null;
-  telefone?: string | null;
-}
-
 export default function RelatoriosPage() {
-  const [obras, setObras] = useState<Obra[]>([]);
+  const { obras } = useObras();
+  const { user } = useSessionUser();
   const [obraId, setObraId] = useState("");
   const [relatorio, setRelatorio] = useState<RelatorioSemanal | null>(null);
-  const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [incluirSemPresenca, setIncluirSemPresenca] = useState(false);
   const [modoPeriodo, setModoPeriodo] = useState<ModoPeriodo>("semana");
   const [dataInicio, setDataInicio] = useState(inicioSemanaAtual);
   const [dataFim, setDataFim] = useState(fimSemanaAtual);
+  const [emitidoEm, setEmitidoEm] = useState(hojeIso());
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data) => {
-        setUser(data);
-        if (data.email) setEmail(data.email);
-        if (data.telefone) setWhatsapp(data.telefone);
-      });
-    fetch("/api/obras")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!Array.isArray(data)) return;
-        setObras(data);
-        if (data[0]) setObraId(data[0].id);
-      });
-  }, []);
+    if (user?.email) setEmail(user.email);
+    if (user?.telefone) setWhatsapp(user.telefone);
+  }, [user]);
+
+  useEffect(() => {
+    if (obras[0] && !obraId) setObraId(obras[0].id);
+  }, [obras, obraId]);
 
   function montarParams(incluir: boolean): URLSearchParams {
     const params = new URLSearchParams({
@@ -68,6 +54,7 @@ export default function RelatoriosPage() {
       incluirSemPresenca: String(incluir),
     });
     aplicarParamsPeriodo(params, modoPeriodo, dataInicio, dataFim);
+    aplicarEmitidoEm(params, emitidoEm);
     return params;
   }
 
@@ -220,6 +207,8 @@ export default function RelatoriosPage() {
             onDataInicioChange={setDataInicio}
             dataFim={dataFim}
             onDataFimChange={setDataFim}
+            emitidoEm={emitidoEm}
+            onEmitidoEmChange={setEmitidoEm}
           />
 
           {!ehVisitante && (
@@ -263,9 +252,7 @@ export default function RelatoriosPage() {
                 Nenhum funcionário com presença neste {labelPeriodo}.
               </p>
             )}
-            {relatorio.linhas
-              .filter((l) => incluirEfetivo || l.diasTrabalhados > 0)
-              .map((l) => (
+            {relatorio.linhas.map((l) => (
               <div key={l.funcionario} className="rounded-xl bg-slate-50 p-3">
                 <div className="flex justify-between">
                   <div>

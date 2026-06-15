@@ -5,9 +5,11 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import { TelefoneBrasilInput } from "@/components/ui/TelefoneBrasilInput";
 
 export default function AlterarSenhaPage() {
+  const { user } = useSessionUser();
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
   const [senhaAtual, setSenhaAtual] = useState("");
@@ -22,14 +24,10 @@ export default function AlterarSenhaPage() {
   const [podeAlterarSenha, setPodeAlterarSenha] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.email) setEmail(data.email);
-        if (data.telefone) setTelefone(data.telefone);
-        setPodeAlterarSenha(data.perfil !== "VISITANTE");
-      });
-  }, []);
+    if (user?.email) setEmail(user.email);
+    if (user?.telefone) setTelefone(user.telefone);
+    if (user) setPodeAlterarSenha(user.perfil !== "VISITANTE");
+  }, [user]);
 
   async function salvarContatos(e: React.FormEvent) {
     e.preventDefault();

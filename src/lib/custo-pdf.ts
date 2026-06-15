@@ -1,6 +1,11 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { RODAPE_RELATORIO } from "@/lib/pdf";
+import {
+  aplicarRodapeTodasPaginas,
+  desenharCabecalhoRelatorio,
+  linhaCabecalhoEmitido,
+  MARGEM_RODAPE_PDF,
+} from "@/lib/pdf-cabecalho";
 import type { RelatorioCustoSemanal } from "@/lib/custo-relatorio";
 
 function formatarMoeda(valor: number) {
@@ -9,19 +14,13 @@ function formatarMoeda(valor: number) {
 
 export function gerarPdfRelatorioCusto(dados: RelatorioCustoSemanal): Buffer {
   const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(30, 58, 95);
-  doc.text("Relatorio de Custos", pageWidth / 2, 20, { align: "center" });
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(12);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`Obra: ${dados.obra}`, 14, 32);
-  doc.text(`Periodo: ${dados.periodo}`, 14, 40);
-  doc.text(`Total geral: ${formatarMoeda(dados.totalGeral)}`, 14, 48);
+  const y = desenharCabecalhoRelatorio(doc, "Relatório de Custos", [
+    { label: "Obra", valor: dados.obra },
+    { label: "Período", valor: dados.periodo },
+    { label: "Total geral", valor: formatarMoeda(dados.totalGeral) },
+    linhaCabecalhoEmitido(dados.emitidoEm),
+  ]);
 
   const body =
     dados.linhas.length > 0
@@ -32,29 +31,18 @@ export function gerarPdfRelatorioCusto(dados: RelatorioCustoSemanal): Buffer {
           formatarMoeda(l.valorDiario),
           formatarMoeda(l.valorTotal),
         ])
-      : [["Nenhum custo no periodo", "-", "0", "-", "-"]];
+      : [["Nenhum custo no período", "-", "0", "-", "-"]];
 
   autoTable(doc, {
-    startY: 56,
-    head: [["Funcionario", "Cargo", "Dias", "Valor/dia", "Total"]],
+    startY: y,
+    head: [["Funcionário", "Cargo", "Dias", "Valor/dia", "Total"]],
     body,
     styles: { fontSize: 9, cellPadding: 3 },
     headStyles: { fillColor: [37, 99, 235], textColor: 255 },
-    margin: { bottom: 28 },
+    margin: { left: 14, right: 14, bottom: MARGEM_RODAPE_PDF + 6 },
   });
 
-  const pageHeight = doc.internal.pageSize.getHeight();
-  doc.setFontSize(8);
-  doc.setTextColor(80, 80, 80);
-  doc.text(
-    `Gerado em ${new Date().toLocaleString("pt-BR")}`,
-    pageWidth / 2,
-    pageHeight - 18,
-    { align: "center" }
-  );
-  doc.setFontSize(9);
-  doc.setTextColor(30, 58, 95);
-  doc.text(RODAPE_RELATORIO, pageWidth / 2, pageHeight - 10, { align: "center" });
+  aplicarRodapeTodasPaginas(doc);
 
   return Buffer.from(doc.output("arraybuffer"));
 }

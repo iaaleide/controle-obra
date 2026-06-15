@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { useObras } from "@/hooks/useObras";
 import { Eye } from "lucide-react";
 
 interface Obra {
@@ -19,8 +20,8 @@ interface Visitante {
 }
 
 export default function VisitantesPage() {
+  const { obras } = useObras();
   const [visitantes, setVisitantes] = useState<Visitante[]>([]);
-  const [obras, setObras] = useState<Obra[]>([]);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [obraIds, setObraIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,12 +29,8 @@ export default function VisitantesPage() {
   const [mensagem, setMensagem] = useState("");
 
   async function carregar() {
-    const [resVisitantes, resObras] = await Promise.all([
-      fetch("/api/usuarios/visitantes"),
-      fetch("/api/obras"),
-    ]);
+    const resVisitantes = await fetch("/api/usuarios/visitantes");
     if (resVisitantes.ok) setVisitantes(await resVisitantes.json());
-    if (resObras.ok) setObras(await resObras.json());
   }
 
   useEffect(() => {

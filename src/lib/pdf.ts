@@ -11,6 +11,7 @@ export interface RelatorioSemanal {
   linhas: RelatorioLinha[];
   totalPresencas: number;
   incluirSemPresenca?: boolean;
+  emitidoEm?: string | null;
 }
 
 export function linhasRelatorioVisiveis(dados: RelatorioSemanal): RelatorioLinha[] {

@@ -1,21 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
-import { prisma } from "@/lib/prisma";
 import { gerarPdfRelatorioMedicao } from "@/lib/medicao-pdf";
 import { montarRelatorioMedicaoParaPdf } from "@/lib/medicao-montar";
 import { temPermissao } from "@/lib/permissions";
+import { respostaPdfNext } from "@/lib/resposta-pdf";
 import type { ItemMedicaoInput } from "@/lib/relatorio-medicao";
-
-function respostaPdf(pdf: Buffer, nomeObra: string) {
-  const nome = nomeObra.replace(/\s+/g, "-").replace(/[^\w-]/g, "");
-  return new NextResponse(new Uint8Array(pdf), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="medicao-${nome || "obra"}.pdf"`,
-    },
-  });
-}
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -34,6 +24,7 @@ export async function POST(request: Request) {
     opcoesPdfMedicao,
     clienteNome,
     itens,
+    emitidoEm,
   } = body;
 
   if (!obraId || !periodoInicio || !periodoFim) {
@@ -48,17 +39,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
-  const obra = await prisma.obra.findUnique({ where: { id: obraId } });
-  if (!obra) {
-    return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });
-  }
-
   const listaItens: ItemMedicaoInput[] = Array.isArray(itens) ? itens : [];
   if (listaItens.length === 0) {
     return NextResponse.json({ error: "Adicione ao menos um serviço ao relatório" }, { status: 400 });
   }
 
-  const relatorio = montarRelatorioMedicaoParaPdf(obra, {
+  const relatorio = montarRelatorioMedicaoParaPdf(acesso.obra, {
     obraId,
     periodoInicio,
     periodoFim,
@@ -70,6 +56,6 @@ export async function POST(request: Request) {
     itens: listaItens,
   });
 
-  const pdf = gerarPdfRelatorioMedicao(relatorio);
-  return respostaPdf(pdf, obra.nome);
+  const pdf = gerarPdfRelatorioMedicao(relatorio, { emitidoEm: body.emitidoEm });
+  return respostaPdfNext(pdf, "medicao", acesso.obra.nome);
 }

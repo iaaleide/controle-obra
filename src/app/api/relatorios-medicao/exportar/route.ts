@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { TipoRelatorio } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
-import { prisma } from "@/lib/prisma";
+import { buscarRelatorioMedicao } from "@/lib/relatorio-db";
 import { exportarItensExcel, gerarModeloExcel } from "@/lib/relatorio-excel";
 import { temPermissao } from "@/lib/permissions";
 import type { ItemMedicaoInput } from "@/lib/relatorio-medicao";
@@ -31,10 +30,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "relatorioId ou modelo=1 é obrigatório" }, { status: 400 });
   }
 
-  const relatorio = await prisma.relatorio.findFirst({
-    where: { id: relatorioId, tipo: TipoRelatorio.MEDICAO },
-    include: { itens: { orderBy: { ordem: "asc" } } },
-  });
+  const relatorio = await buscarRelatorioMedicao(relatorioId);
 
   if (!relatorio) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });

@@ -1,12 +1,18 @@
-import type { Prisma, TipoRelatorio } from "@prisma/client";
+import type { Obra, Prisma, TipoRelatorio } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-type RelatorioComDetalhes = Prisma.RelatorioGetPayload<{
-  include: { itens: true; fotos: true; obra: true };
-}>;
+export type RelatorioParaBackup = {
+  id: string;
+  obraId: string;
+  tipo: TipoRelatorio;
+  obra: Obra;
+  itens?: unknown[];
+  fotos?: unknown[];
+  [key: string]: unknown;
+};
 
 export async function backupRelatorioAntesExcluir(
-  relatorio: RelatorioComDetalhes,
+  relatorio: RelatorioParaBackup,
   excluidoPor: { id: string; nome: string },
   tx?: Prisma.TransactionClient
 ) {
@@ -27,17 +33,20 @@ export async function backupRelatorioAntesExcluir(
 export async function excluirRelatorioComBackup(
   id: string,
   tipo: TipoRelatorio,
-  excluidoPor: { id: string; nome: string }
+  excluidoPor: { id: string; nome: string },
+  relatorioCarregado?: RelatorioParaBackup | null
 ) {
-  const relatorio = await prisma.relatorio.findFirst({
-    where: { id, tipo },
-    include: { itens: true, fotos: true, obra: true },
-  });
+  const relatorio =
+    relatorioCarregado ??
+    (await prisma.relatorio.findFirst({
+      where: { id, tipo },
+      include: { itens: true, fotos: true, obra: true },
+    }));
 
   if (!relatorio) return null;
 
   await prisma.$transaction(async (tx) => {
-    await backupRelatorioAntesExcluir(relatorio, excluidoPor, tx);
+    await backupRelatorioAntesExcluir(relatorio as RelatorioParaBackup, excluidoPor, tx);
     await tx.relatorio.delete({ where: { id } });
   });
 
@@ -57,9 +66,16 @@ export async function limparRelatoriosObraComBackup(
   if (relatorios.length === 0) return 0;
 
   await prisma.$transaction(async (tx) => {
-    for (const relatorio of relatorios) {
-      await backupRelatorioAntesExcluir(relatorio, excluidoPor, tx);
-    }
+    await tx.relatorioBackup.createMany({
+      data: relatorios.map((relatorio) => ({
+        relatorioId: relatorio.id,
+        obraId: relatorio.obraId,
+        tipo: relatorio.tipo,
+        dados: JSON.parse(JSON.stringify(relatorio)) as Prisma.InputJsonValue,
+        excluidoPorId: excluidoPor.id,
+        excluidoPorNome: excluidoPor.nome,
+      })),
+    });
     await tx.relatorio.deleteMany({ where: { obraId, tipo } });
   });
 

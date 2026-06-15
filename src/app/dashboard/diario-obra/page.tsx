@@ -5,6 +5,9 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { SpeechTextarea } from "@/components/diario/SpeechTextarea";
+import { lerImagemComoDataUrl } from "@/lib/imagem";
+import { SelecionarImagemFoto } from "@/components/SelecionarImagemFoto";
+import { useObras } from "@/hooks/useObras";
 import { Printer, Save } from "lucide-react";
 
 interface Obra {
@@ -25,17 +28,8 @@ function hojeISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function lerImagem(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function DiarioObraPage() {
-  const [obras, setObras] = useState<Obra[]>([]);
+  const { obras } = useObras();
   const [obraId, setObraId] = useState("");
   const [data, setData] = useState(hojeISO());
   const [clienteNome, setClienteNome] = useState("");
@@ -50,12 +44,6 @@ export default function DiarioObraPage() {
   const obra = obras.find((o) => o.id === obraId);
 
   useEffect(() => {
-    fetch("/api/obras")
-      .then((r) => r.json())
-      .then(setObras);
-  }, []);
-
-  useEffect(() => {
     if (obra) {
       setClienteNome(obra.clienteNome || "");
     }
@@ -67,7 +55,7 @@ export default function DiarioObraPage() {
 
   async function onFile(index: number, file: File | null) {
     if (!file) return;
-    const base64 = await lerImagem(file);
+    const base64 = await lerImagemComoDataUrl(file);
     atualizarFoto(index, { imagemBase64: base64 });
   }
 
@@ -146,13 +134,7 @@ export default function DiarioObraPage() {
             {fotos.map((foto, i) => (
               <div key={i} className="rounded-xl border border-slate-200 p-3">
                 <p className="mb-2 text-xs font-medium text-slate-500">Foto {i + 1}</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => onFile(i, e.target.files?.[0] ?? null)}
-                  className="mb-2 w-full text-xs"
-                />
+                <SelecionarImagemFoto onSelect={(file) => onFile(i, file)} />
                 {foto.imagemBase64 && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

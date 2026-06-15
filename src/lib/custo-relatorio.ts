@@ -2,6 +2,7 @@ import { TipoCustoFuncionario } from "@prisma/client";
 import { prisma } from "./prisma";
 import { gerarRelatorioSemanal, gerarRelatorioPeriodo } from "./relatorio";
 import type { RelatorioSemanal } from "./pdf";
+import { inicioSemana, fimSemana } from "./semana";
 
 export interface LinhaCusto {
   funcionario: string;
@@ -17,22 +18,7 @@ export interface RelatorioCustoSemanal {
   periodo: string;
   linhas: LinhaCusto[];
   totalGeral: number;
-}
-
-function inicioSemana(data: Date): Date {
-  const d = new Date(data);
-  const dia = d.getDay();
-  const diff = dia === 0 ? -6 : 1 - dia;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function fimSemana(inicio: Date): Date {
-  const fim = new Date(inicio);
-  fim.setDate(fim.getDate() + 6);
-  fim.setHours(23, 59, 59, 999);
-  return fim;
+  emitidoEm?: string | null;
 }
 
 async function buscarCustosAtivos() {
@@ -42,25 +28,36 @@ async function buscarCustosAtivos() {
   });
 }
 
+type CustoAtivo = Awaited<ReturnType<typeof buscarCustosAtivos>>[number];
+
+function indexarCustos(custos: CustoAtivo[]) {
+  const porPessoa = new Map<string, CustoAtivo>();
+  const porCargo = new Map<string, CustoAtivo>();
+
+  for (const c of custos) {
+    if (c.tipo === TipoCustoFuncionario.PESSOA && c.funcionarioId) {
+      porPessoa.set(c.funcionarioId, c);
+    } else if (c.tipo === TipoCustoFuncionario.CARGO && c.cargo) {
+      porCargo.set(c.cargo.trim().toLowerCase(), c);
+    }
+  }
+
+  return { porPessoa, porCargo };
+}
+
 function resolverValorDiario(
   funcionarioId: string,
   cargo: string | null,
-  custos: Awaited<ReturnType<typeof buscarCustosAtivos>>
+  custosIndexados: ReturnType<typeof indexarCustos>
 ): { valor: number; origem: LinhaCusto["origemCusto"] } {
-  const porPessoa = custos.find(
-    (c) => c.tipo === TipoCustoFuncionario.PESSOA && c.funcionarioId === funcionarioId
-  );
+  const porPessoa = custosIndexados.porPessoa.get(funcionarioId);
   if (porPessoa) {
     return { valor: Number(porPessoa.valorDiario), origem: "PESSOA" };
   }
 
   const cargoNorm = (cargo || "").trim().toLowerCase();
   if (cargoNorm) {
-    const porCargo = custos.find(
-      (c) =>
-        c.tipo === TipoCustoFuncionario.CARGO &&
-        (c.cargo || "").trim().toLowerCase() === cargoNorm
-    );
+    const porCargo = custosIndexados.porCargo.get(cargoNorm);
     if (porCargo) {
       return { valor: Number(porCargo.valorDiario), origem: "CARGO" };
     }
@@ -74,6 +71,7 @@ async function montarRelatorioCusto(
   relatorioPresenca: RelatorioSemanal
 ): Promise<RelatorioCustoSemanal> {
   const custos = await buscarCustosAtivos();
+  const custosIndexados = indexarCustos(custos);
   const funcionarios = await prisma.funcionario.findMany({
     where: {
       ativo: true,
@@ -86,7 +84,7 @@ async function montarRelatorioCusto(
 
   const linhas: LinhaCusto[] = relatorioPresenca.linhas.map((l) => {
     const f = mapaFunc[l.funcionario];
-    const { valor, origem } = resolverValorDiario(f?.id ?? "", l.cargo, custos);
+    const { valor, origem } = resolverValorDiario(f?.id ?? "", l.cargo, custosIndexados);
     const valorTotal = valor * l.diasTrabalhados;
     return {
       funcionario: l.funcionario,

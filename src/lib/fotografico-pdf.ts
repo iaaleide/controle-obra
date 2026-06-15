@@ -3,6 +3,9 @@ import type { FotoRelatorio, Obra, Relatorio } from "@prisma/client";
 import {
   aplicarRodapeTodasPaginas,
   desenharCabecalhoRelatorio,
+  desenharTextoComRodape,
+  linhaCabecalhoEmitido,
+  MARGEM_RODAPE_PDF,
   RODAPE_SOFT,
 } from "@/lib/pdf-cabecalho";
 import { calcularFitContain, obterDimensoesBase64 } from "@/lib/imagem-utils";
@@ -19,7 +22,7 @@ const MARGIN_X = 14;
 const COL_GAP = 5;
 const ROW_GAP = 3;
 const LEGENDA_H = 5;
-const FOOTER_MARGIN = 32;
+const FOOTER_MARGIN = MARGEM_RODAPE_PDF + 14;
 
 function detectarFormatoImagem(dataUrl: string): "JPEG" | "PNG" | "WEBP" {
   if (dataUrl.startsWith("data:image/png")) return "PNG";
@@ -60,7 +63,10 @@ function chunkFotos<T>(lista: T[], tamanho: number): T[][] {
   return paginas;
 }
 
-export function gerarPdfRelatorioFotografico(relatorio: RelatorioFotograficoCompleto): Buffer {
+export function gerarPdfRelatorioFotografico(
+  relatorio: RelatorioFotograficoCompleto,
+  opcoesEmissao?: { emitidoEm?: string | null }
+): Buffer {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -89,6 +95,7 @@ export function gerarPdfRelatorioFotografico(relatorio: RelatorioFotograficoComp
           { label: "Cliente", valor: relatorio.clienteNome || relatorio.obra.clienteNome || "—" },
           { label: "Endereço", valor: relatorio.obra.endereco || "—" },
           { label: "Período", valor: periodo },
+          linhaCabecalhoEmitido(opcoesEmissao?.emitidoEm),
         ],
         16,
         { compacto: true }
@@ -127,15 +134,14 @@ export function gerarPdfRelatorioFotografico(relatorio: RelatorioFotograficoComp
 
   if (relatorio.observacoesGerais) {
     doc.addPage();
-    const obsY = 20;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(30, 58, 95);
-    doc.text("Observações", MARGIN_X, obsY);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text(relatorio.observacoesGerais, MARGIN_X, obsY + 6, { maxWidth: pageWidth - 28 });
+    desenharTextoComRodape(
+      doc,
+      "Observações",
+      relatorio.observacoesGerais,
+      20,
+      MARGIN_X,
+      pageWidth - MARGIN_X * 2
+    );
   }
 
   aplicarRodapeTodasPaginas(doc, RODAPE_SOFT);

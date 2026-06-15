@@ -10,6 +10,18 @@ export type PayloadFotograficoPdf = {
   fotos: { ordem: number; imagemBase64?: string; legenda?: string }[];
 };
 
+export function fotosParaCreateMany(
+  relatorioId: string,
+  fotos: { ordem?: number; imagemBase64?: string; legenda?: string }[]
+) {
+  return fotos.map((f, index) => ({
+    relatorioId,
+    ordem: f.ordem ?? index,
+    imagemBase64: f.imagemBase64 || null,
+    legenda: f.legenda || null,
+  }));
+}
+
 export function montarRelatorioFotograficoParaPdf(
   obra: Obra,
   payload: PayloadFotograficoPdf

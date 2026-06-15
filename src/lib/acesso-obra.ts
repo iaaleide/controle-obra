@@ -1,3 +1,4 @@
+import type { Obra } from "@prisma/client";
 import { Perfil } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -22,7 +23,7 @@ export async function exigirAcessoObra(
   usuarioId: string,
   perfil: Perfil,
   obraId: string
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true; obra: Obra } | { ok: false; status: number; error: string }> {
   const obra = await prisma.obra.findFirst({
     where: { id: obraId, ativa: true },
   });
@@ -40,7 +41,7 @@ export async function exigirAcessoObra(
     };
   }
 
-  return { ok: true };
+  return { ok: true, obra };
 }
 
 export async function sincronizarObrasVisitante(

@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import { fotosParaCreateMany } from "@/lib/fotografico-montar";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -52,7 +53,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
-  const obra = await prisma.obra.findUnique({ where: { id: obraId } });
   const listaFotos = Array.isArray(fotos) ? fotos : [];
 
   const relatorio = await prisma.$transaction(async (tx) => {
@@ -62,21 +62,14 @@ export async function POST(request: Request) {
         tipo: TipoRelatorio.FOTOGRAFICO,
         periodoInicio: new Date(periodoInicio + "T12:00:00"),
         periodoFim: new Date(periodoFim + "T12:00:00"),
-        clienteNome: clienteNome || obra?.clienteNome || null,
+        clienteNome: clienteNome || acesso.obra.clienteNome || null,
         observacoesGerais: observacoesGerais || null,
       },
     });
 
     if (listaFotos.length > 0) {
       await tx.fotoRelatorio.createMany({
-        data: listaFotos.map(
-          (f: { ordem: number; imagemBase64?: string; legenda?: string }, index: number) => ({
-            relatorioId: criado.id,
-            ordem: f.ordem ?? index,
-            imagemBase64: f.imagemBase64 || null,
-            legenda: f.legenda || null,
-          })
-        ),
+        data: fotosParaCreateMany(criado.id, listaFotos),
       });
     }
 

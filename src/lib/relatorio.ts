@@ -1,9 +1,12 @@
 import { Perfil } from "@prisma/client";
 import { prisma } from "./prisma";
 import type { RelatorioSemanal, RelatorioLinha } from "./pdf";
+import { inicioSemana, fimSemana, formatarData } from "./semana";
 
 export interface OpcoesRelatorio {
   incluirSemPresenca?: boolean;
+  /** Evita query extra quando a obra já foi validada (ex.: exigirAcessoObra). */
+  obra?: { nome: string };
 }
 
 function filtrarLinhas(
@@ -38,26 +41,6 @@ export function parseIncluirSemPresenca(value: unknown): boolean {
 export function resolverIncluirSemPresenca(perfil: Perfil, value: unknown): boolean {
   if (perfil === Perfil.VISITANTE) return false;
   return parseIncluirSemPresenca(value);
-}
-
-function inicioSemana(data: Date): Date {
-  const d = new Date(data);
-  const dia = d.getDay();
-  const diff = dia === 0 ? -6 : 1 - dia;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function fimSemana(inicio: Date): Date {
-  const fim = new Date(inicio);
-  fim.setDate(fim.getDate() + 6);
-  fim.setHours(23, 59, 59, 999);
-  return fim;
-}
-
-function formatarData(d: Date): string {
-  return d.toLocaleDateString("pt-BR");
 }
 
 function filtroPresencaPeriodo(obraId: string, inicio: Date, fim: Date) {
@@ -107,7 +90,8 @@ export async function gerarRelatorioSemanal(
   opcoes: OpcoesRelatorio = {}
 ): Promise<RelatorioSemanal | null> {
   const incluirSemPresenca = opcoes.incluirSemPresenca ?? false;
-  const obra = await prisma.obra.findUnique({ where: { id: obraId } });
+  const obra =
+    opcoes.obra ?? (await prisma.obra.findUnique({ where: { id: obraId } }));
   if (!obra) return null;
 
   const ref = referencia || new Date();
@@ -143,7 +127,8 @@ export async function gerarRelatorioPeriodo(
   opcoes: OpcoesRelatorio = {}
 ): Promise<RelatorioSemanal | null> {
   const incluirSemPresenca = opcoes.incluirSemPresenca ?? false;
-  const obra = await prisma.obra.findUnique({ where: { id: obraId } });
+  const obra =
+    opcoes.obra ?? (await prisma.obra.findUnique({ where: { id: obraId } }));
   if (!obra) return null;
 
   const funcionarios = await buscarFuncionariosRelatorio(

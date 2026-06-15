@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { inicioSemana, fimSemana, formatarData } from "./semana";
 
 export interface LinhaFerramentaRelatorio {
   ferramenta: string;
@@ -12,26 +13,7 @@ export interface RelatorioFerramentas {
   obra: string;
   periodo: string;
   linhas: LinhaFerramentaRelatorio[];
-}
-
-function formatarData(d: Date): string {
-  return d.toLocaleDateString("pt-BR");
-}
-
-function inicioSemana(data: Date): Date {
-  const d = new Date(data);
-  const dia = d.getDay();
-  const diff = dia === 0 ? -6 : 1 - dia;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function fimSemana(inicio: Date): Date {
-  const fim = new Date(inicio);
-  fim.setDate(fim.getDate() + 6);
-  fim.setHours(23, 59, 59, 999);
-  return fim;
+  emitidoEm?: string | null;
 }
 
 async function buscarEmprestimosPeriodo(obraId: string, inicio: Date, fim: Date) {

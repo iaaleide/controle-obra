@@ -1,20 +1,13 @@
 import { NextResponse } from "next/server";
-import { TipoRelatorio } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
-import { calcularItemMedicao, type ItemMedicaoInput } from "@/lib/relatorio-medicao";
+import { itensMedicaoParaCreateMany, type ItemMedicaoInput } from "@/lib/relatorio-medicao";
 import { excluirRelatorioComBackup } from "@/lib/relatorio-backup";
+import { buscarRelatorioMedicao } from "@/lib/relatorio-db";
 
 type Params = { params: Promise<{ id: string }> };
-
-async function buscarRelatorio(id: string) {
-  return prisma.relatorio.findFirst({
-    where: { id, tipo: TipoRelatorio.MEDICAO },
-    include: { itens: { orderBy: { ordem: "asc" } }, obra: true },
-  });
-}
 
 export async function GET(_request: Request, { params }: Params) {
   const session = await getSession();
@@ -23,7 +16,7 @@ export async function GET(_request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const relatorio = await buscarRelatorio(id);
+  const relatorio = await buscarRelatorioMedicao(id);
   if (!relatorio) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });
   }
@@ -43,7 +36,7 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const existente = await buscarRelatorio(id);
+  const existente = await buscarRelatorioMedicao(id);
   if (!existente) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });
   }
@@ -87,21 +80,7 @@ export async function PATCH(request: Request, { params }: Params) {
       await tx.itemRelatorio.deleteMany({ where: { relatorioId: id } });
       if (listaItens.length > 0) {
         await tx.itemRelatorio.createMany({
-          data: listaItens.map((item, ordem) => {
-            const calc = calcularItemMedicao(item);
-            return {
-              relatorioId: id,
-              ordem,
-              item: calc.item || null,
-              descricao: calc.descricao,
-              valorTotal: calc.valorTotal,
-              valorPrevisto: calc.valorPrevisto,
-              valorRealizado: calc.valorRealizado,
-              percentualExecutado: calc.percentualExecutado,
-              mostrarNoRelatorio: calc.mostrarNoRelatorio !== false,
-              observacao: calc.observacao || null,
-            };
-          }),
+          data: itensMedicaoParaCreateMany(id, listaItens),
         });
       }
     }
@@ -122,7 +101,7 @@ export async function DELETE(_request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const existente = await buscarRelatorio(id);
+  const existente = await buscarRelatorioMedicao(id);
   if (!existente) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });
   }
@@ -132,10 +111,12 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
-  const excluido = await excluirRelatorioComBackup(id, TipoRelatorio.MEDICAO, {
-    id: session.id,
-    nome: session.nome,
-  });
+  const excluido = await excluirRelatorioComBackup(
+    id,
+    existente.tipo,
+    { id: session.id, nome: session.nome },
+    existente
+  );
 
   if (!excluido) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });

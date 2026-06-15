@@ -6,23 +6,16 @@ import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
 import { SpeechTextarea } from "@/components/diario/SpeechTextarea";
-import { inicioSemanaAtual, fimSemanaAtual, type ModoPeriodo } from "@/lib/periodo-relatorio";
+import { inicioSemanaAtual, fimSemanaAtual, hojeIso, type ModoPeriodo } from "@/lib/periodo-relatorio";
 import { EnviarRelatorioContatos } from "@/components/relatorios/EnviarRelatorioContatos";
 import { temPermissao } from "@/lib/permissions";
+import { useObras } from "@/hooks/useObras";
+import { useSessionUser } from "@/hooks/useSessionUser";
+import { lerImagemComoDataUrl } from "@/lib/imagem";
+import { abrirLinkExterno } from "@/lib/abrir-link";
+import { baixarPdfDaUrl } from "@/lib/download-pdf";
 import { Download, Plus, Save, Trash2 } from "lucide-react";
-
-interface Obra {
-  id: string;
-  nome: string;
-  clienteNome: string | null;
-  endereco: string | null;
-}
-
-interface User {
-  perfil: "ADMIN" | "MESTRE" | "VISITANTE";
-  email?: string | null;
-  telefone?: string | null;
-}
+import { SelecionarImagemFoto } from "@/components/SelecionarImagemFoto";
 
 interface FotoSlot {
   imagemBase64: string;
@@ -43,29 +36,21 @@ function totalFolhas(totalFotos: number): number {
   return Math.max(1, Math.ceil(totalFotos / FOTOS_POR_FOLHA));
 }
 
-function lerImagem(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function RelatorioFotograficoPage() {
-  const [obras, setObras] = useState<Obra[]>([]);
+  const { obras } = useObras();
+  const { user } = useSessionUser();
   const [obraId, setObraId] = useState("");
   const [relatorioId, setRelatorioId] = useState<string | null>(null);
   const [modoPeriodo, setModoPeriodo] = useState<ModoPeriodo>("personalizado");
   const [dataInicio, setDataInicio] = useState(inicioSemanaAtual());
   const [dataFim, setDataFim] = useState(fimSemanaAtual());
+  const [emitidoEm, setEmitidoEm] = useState(hojeIso());
   const [clienteNome, setClienteNome] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [fotos, setFotos] = useState<FotoSlot[]>(slotsIniciais());
   const [salvos, setSalvos] = useState<
     { id: string; periodoInicio: string; periodoFim: string; fotos?: unknown[] }[]
   >([]);
-  const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -75,23 +60,40 @@ export default function RelatorioFotograficoPage() {
   const fotosPreenchidas = fotos.filter((f) => f.imagemBase64);
 
   useEffect(() => {
-    fetch("/api/obras")
-      .then((r) => r.json())
-      .then(setObras);
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data) => {
-        setUser(data);
-        if (data.email) setEmail(data.email);
-        if (data.telefone) setWhatsapp(data.telefone);
-      });
-  }, []);
+    if (user?.email) setEmail(user.email);
+    if (user?.telefone) setWhatsapp(user.telefone);
+  }, [user]);
 
   const podeEnviar = user ? temPermissao(user.perfil, "enviar_relatorio") : false;
 
   useEffect(() => {
     if (obra) setClienteNome(obra.clienteNome || "");
   }, [obraId, obra]);
+
+  useEffect(() => {
+    if (!obraId) {
+      setSalvos([]);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    fetch(`/api/relatorios-fotografico?obraId=${obraId}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setSalvos(data);
+        } else {
+          setSalvos([]);
+          setMensagem(data.error || "Erro ao listar relatórios salvos");
+        }
+      })
+      .catch((e) => {
+        if (e.name !== "AbortError") setSalvos([]);
+      });
+
+    return () => controller.abort();
+  }, [obraId]);
 
   async function listarSalvos() {
     if (!obraId) {
@@ -108,10 +110,6 @@ export default function RelatorioFotograficoPage() {
     setSalvos(Array.isArray(data) ? data : []);
   }
 
-  useEffect(() => {
-    listarSalvos();
-  }, [obraId]);
-
   function atualizarFoto(index: number, patch: Partial<FotoSlot>) {
     setFotos((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)));
   }
@@ -120,9 +118,29 @@ export default function RelatorioFotograficoPage() {
     setFotos((prev) => [...prev, ...criarSlots(FOTOS_POR_FOLHA)]);
   }
 
+  function excluirFolha(indiceFolha: number) {
+    if (totalFolhas(fotos.length) <= 1) return;
+
+    const inicio = indiceFolha * FOTOS_POR_FOLHA;
+    const folha = fotos.slice(inicio, inicio + FOTOS_POR_FOLHA);
+    const temConteudo = folha.some((f) => f.imagemBase64 || f.legenda.trim());
+
+    if (temConteudo) {
+      const ok = confirm(
+        `Excluir a folha ${indiceFolha + 1}? As ${FOTOS_POR_FOLHA} fotos desta página serão removidas.`
+      );
+      if (!ok) return;
+    }
+
+    setFotos((prev) => [
+      ...prev.slice(0, inicio),
+      ...prev.slice(inicio + FOTOS_POR_FOLHA),
+    ]);
+  }
+
   async function onFile(index: number, file: File | null) {
     if (!file) return;
-    const base64 = await lerImagem(file);
+    const base64 = await lerImagemComoDataUrl(file);
     atualizarFoto(index, { imagemBase64: base64 });
   }
 
@@ -150,14 +168,18 @@ export default function RelatorioFotograficoPage() {
       const fotosSalvas = [...(r.fotos || [])].sort(
         (a: { ordem: number }, b: { ordem: number }) => a.ordem - b.ordem
       );
+      const porOrdem = new Map(
+        fotosSalvas.map((f: { ordem: number; imagemBase64?: string; legenda?: string }) => [
+          f.ordem,
+          f,
+        ])
+      );
       const totalSlots = Math.max(
         FOTOS_POR_FOLHA,
         Math.ceil(fotosSalvas.length / FOTOS_POR_FOLHA) * FOTOS_POR_FOLHA
       );
       const slots = Array.from({ length: totalSlots }, (_, ordem) => {
-        const f = fotosSalvas.find((x: { ordem: number }) => x.ordem === ordem) as
-          | { imagemBase64?: string; legenda?: string }
-          | undefined;
+        const f = porOrdem.get(ordem);
         return {
           imagemBase64: f?.imagemBase64 || "",
           legenda: f?.legenda || "",
@@ -255,35 +277,33 @@ export default function RelatorioFotograficoPage() {
     setMensagem("");
     const id = await persistirRelatorio();
     if (id) {
-      window.open(`/api/relatorios-fotografico/${id}/pdf`, "_blank");
-      setMensagem("PDF exportado. Relatório salvo no histórico da obra.");
+      const nome = (obra?.nome || "fotografico").replace(/\s+/g, "-");
+      const resultado = await baixarPdfDaUrl(
+        `/api/relatorios-fotografico/${id}/pdf?emitidoEm=${encodeURIComponent(emitidoEm)}`,
+        `fotografico-${nome}.pdf`
+      );
+      setMensagem(
+        resultado.ok
+          ? "PDF exportado. Relatório salvo no histórico da obra."
+          : resultado.error
+      );
     }
     setLoading(false);
-  }
-
-  function payloadEnvio() {
-    return {
-      obraId,
-      periodoInicio: dataInicio,
-      periodoFim: dataFim,
-      clienteNome,
-      observacoesGerais: observacoes,
-      fotos: fotos.map((f, ordem) => ({
-        ordem,
-        imagemBase64: f.imagemBase64 || undefined,
-        legenda: f.legenda || undefined,
-      })),
-    };
   }
 
   async function enviarEmail() {
     if (!obraId || !email) return;
     setLoading(true);
     setMensagem("");
+    const id = await persistirRelatorio();
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     const res = await fetch("/api/relatorios-fotografico/enviar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payloadEnvio(), tipo: "email", destinatario: email }),
+      body: JSON.stringify({ relatorioId: id, tipo: "email", destinatario: email }),
     });
     const data = await res.json();
     setMensagem(data.message || data.error || (res.ok ? "E-mail enviado" : "Erro ao enviar"));
@@ -294,18 +314,23 @@ export default function RelatorioFotograficoPage() {
     if (!obraId) return;
     setLoading(true);
     setMensagem("");
+    const id = await persistirRelatorio();
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     const res = await fetch("/api/relatorios-fotografico/enviar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...payloadEnvio(),
+        relatorioId: id,
         tipo: "whatsapp",
         destinatario: whatsapp,
       }),
     });
     const data = await res.json();
-    if (data.url) window.open(data.url, "_blank");
-    setMensagem(data.message || data.error || "Link WhatsApp gerado");
+    if (data.url) abrirLinkExterno(data.url);
+    setMensagem(data.message || data.error || (data.url ? "Abrindo WhatsApp…" : "Erro ao enviar"));
     setLoading(false);
   }
 
@@ -347,6 +372,8 @@ export default function RelatorioFotograficoPage() {
             onDataInicioChange={setDataInicio}
             dataFim={dataFim}
             onDataFimChange={setDataFim}
+            emitidoEm={emitidoEm}
+            onEmitidoEmChange={setEmitidoEm}
           />
 
           <Input
@@ -432,9 +459,21 @@ export default function RelatorioFotograficoPage() {
         <div className="space-y-6">
           {Array.from({ length: numFolhas }, (_, folha) => (
             <div key={folha} className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Folha {folha + 1} — até {FOTOS_POR_FOLHA} fotos no PDF
-              </p>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Folha {folha + 1} — até {FOTOS_POR_FOLHA} fotos no PDF
+                </p>
+                {numFolhas > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => excluirFolha(folha)}
+                    className="text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Excluir folha
+                  </Button>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {fotos
                   .slice(folha * FOTOS_POR_FOLHA, (folha + 1) * FOTOS_POR_FOLHA)
@@ -443,13 +482,7 @@ export default function RelatorioFotograficoPage() {
                     return (
                       <div key={i} className="rounded-xl border border-slate-200 bg-white p-3">
                         <p className="mb-2 text-xs font-medium text-slate-500">Foto {i + 1}</p>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={(e) => onFile(i, e.target.files?.[0] ?? null)}
-                          className="mb-2 w-full text-xs"
-                        />
+                        <SelecionarImagemFoto onSelect={(file) => onFile(i, file)} />
                         <div className="mb-2 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
                           {foto.imagemBase64 ? (
                             // eslint-disable-next-line @next/next/no-img-element

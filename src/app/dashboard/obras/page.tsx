@@ -1,33 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { temPermissao } from "@/lib/permissions";
+import { useObras, type ObraResumo } from "@/hooks/useObras";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
-import type { Perfil } from "@prisma/client";
 
-interface Obra {
-  id: string;
-  nome: string;
-  clienteNome: string | null;
-  endereco: string | null;
+type Obra = ObraResumo & {
   descricao: string | null;
   ativa: boolean;
   _count: { alocacoes: number };
-}
-
-interface User {
-  perfil: Perfil;
-}
+};
 
 export default function ObrasPage() {
-  const [obras, setObras] = useState<Obra[]>([]);
-  const [user, setUser] = useState<User | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const { user } = useSessionUser();
+  const podeExcluir = user ? temPermissao(user.perfil, "excluir_obra") : false;
   const [mostrarInativas, setMostrarInativas] = useState(false);
+  const { obras, recarregar } = useObras({
+    incluirInativas: mostrarInativas && podeExcluir,
+  });
+  const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<Obra | null>(null);
   const [nome, setNome] = useState("");
   const [clienteNome, setClienteNome] = useState("");
@@ -39,21 +35,8 @@ export default function ObrasPage() {
 
   const podeCadastrar = user ? temPermissao(user.perfil, "cadastrar_obra") : false;
   const podeEditar = user ? temPermissao(user.perfil, "editar_obra") : false;
-  const podeExcluir = user ? temPermissao(user.perfil, "excluir_obra") : false;
 
-  async function carregar() {
-    const incluir = mostrarInativas && podeExcluir;
-    const [resObras, resUser] = await Promise.all([
-      fetch(`/api/obras${incluir ? "?incluirInativas=true" : ""}`),
-      fetch("/api/auth/me"),
-    ]);
-    if (resObras.ok) setObras(await resObras.json());
-    if (resUser.ok) setUser(await resUser.json());
-  }
-
-  useEffect(() => {
-    carregar();
-  }, [mostrarInativas]);
+  const obrasLista = obras as Obra[];
 
   function abrirEdicao(obra: Obra) {
     setEditando(obra);
@@ -91,7 +74,7 @@ export default function ObrasPage() {
 
     if (res.ok) {
       limparForm();
-      carregar();
+      recarregar();
     } else {
       const data = await res.json();
       setErro(data.error || "Erro ao salvar");
@@ -116,7 +99,7 @@ export default function ObrasPage() {
 
     if (res.ok) {
       if (editando?.id === obra.id) limparForm();
-      carregar();
+      recarregar();
     } else {
       const data = await res.json();
       setErro(data.error || "Erro ao excluir");
@@ -139,7 +122,7 @@ export default function ObrasPage() {
     });
 
     if (res.ok) {
-      carregar();
+      recarregar();
     } else {
       const data = await res.json();
       setErro(data.error || "Erro ao reativar");
@@ -148,7 +131,7 @@ export default function ObrasPage() {
     setAcaoId(null);
   }
 
-  const visiveis = obras.filter((o) => mostrarInativas || o.ativa);
+  const visiveis = obrasLista.filter((o) => mostrarInativas || o.ativa);
 
   return (
     <div className="space-y-4">

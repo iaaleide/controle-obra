@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
-import { prisma } from "@/lib/prisma";
 import { gerarPdfRelatorioFotografico } from "@/lib/fotografico-pdf";
 import { montarRelatorioFotograficoParaPdf } from "@/lib/fotografico-montar";
 import { temPermissao } from "@/lib/permissions";
-
-function respostaPdf(pdf: Buffer, nomeObra: string) {
-  const nome = nomeObra.replace(/\s+/g, "-").replace(/[^\w-]/g, "");
-  return new NextResponse(new Uint8Array(pdf), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="fotografico-${nome || "obra"}.pdf"`,
-    },
-  });
-}
+import { respostaPdfNext } from "@/lib/resposta-pdf";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -23,7 +13,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { obraId, periodoInicio, periodoFim, clienteNome, observacoesGerais, fotos } = body;
+  const { obraId, periodoInicio, periodoFim, clienteNome, observacoesGerais, fotos, emitidoEm } = body;
 
   if (!obraId || !periodoInicio || !periodoFim) {
     return NextResponse.json(
@@ -37,13 +27,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
-  const obra = await prisma.obra.findUnique({ where: { id: obraId } });
-  if (!obra) {
-    return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });
-  }
-
   const listaFotos = Array.isArray(fotos) ? fotos : [];
-  const relatorio = montarRelatorioFotograficoParaPdf(obra, {
+  const relatorio = montarRelatorioFotograficoParaPdf(acesso.obra, {
     obraId,
     periodoInicio,
     periodoFim,
@@ -52,6 +37,6 @@ export async function POST(request: Request) {
     fotos: listaFotos,
   });
 
-  const pdf = gerarPdfRelatorioFotografico(relatorio);
-  return respostaPdf(pdf, obra.nome);
+  const pdf = gerarPdfRelatorioFotografico(relatorio, { emitidoEm });
+  return respostaPdfNext(pdf, "fotografico", acesso.obra.nome);
 }

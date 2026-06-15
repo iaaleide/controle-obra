@@ -79,6 +79,37 @@ export function calcularItemMedicao(item: ItemMedicaoInput): ItemMedicaoCalculad
   };
 }
 
+export function itemRelatorioParaCalculado(item: ItemRelatorio): ItemMedicaoCalculado {
+  return {
+    item: item.item,
+    descricao: item.descricao,
+    valorTotal: Number(item.valorTotal),
+    valorPrevisto: Number(item.valorPrevisto),
+    valorRealizado: Number(item.valorRealizado),
+    percentualExecutado: Number(item.percentualExecutado),
+    mostrarNoRelatorio: item.mostrarNoRelatorio,
+    observacao: item.observacao,
+  };
+}
+
+export function itensMedicaoParaCreateMany(relatorioId: string, listaItens: ItemMedicaoInput[]) {
+  return listaItens.map((item, ordem) => {
+    const calc = calcularItemMedicao(item);
+    return {
+      relatorioId,
+      ordem,
+      item: calc.item || null,
+      descricao: calc.descricao,
+      valorTotal: calc.valorTotal,
+      valorPrevisto: calc.valorPrevisto,
+      valorRealizado: calc.valorRealizado,
+      percentualExecutado: calc.percentualExecutado,
+      mostrarNoRelatorio: calc.mostrarNoRelatorio !== false,
+      observacao: calc.observacao || null,
+    };
+  });
+}
+
 export function calcularTotaisItens(
   itens: {
     valorTotal: number | { toString(): string };

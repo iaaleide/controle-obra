@@ -5,11 +5,14 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
+import { useObras } from "@/hooks/useObras";
 import { Download, Plus, Trash2 } from "lucide-react";
 import type { RelatorioCustoSemanal } from "@/lib/custo-relatorio";
 import {
   aplicarParamsPeriodo,
+  aplicarEmitidoEm,
   fimSemanaAtual,
+  hojeIso,
   inicioSemanaAtual,
   type ModoPeriodo,
   validarPeriodo,
@@ -36,8 +39,8 @@ interface Custo {
 }
 
 export default function CustosPage() {
+  const { obras } = useObras();
   const [custos, setCustos] = useState<Custo[]>([]);
-  const [obras, setObras] = useState<Obra[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [tipo, setTipo] = useState<"CARGO" | "PESSOA">("CARGO");
   const [cargo, setCargo] = useState("");
@@ -48,17 +51,16 @@ export default function CustosPage() {
   const [modoPeriodo, setModoPeriodo] = useState<ModoPeriodo>("semana");
   const [dataInicio, setDataInicio] = useState(inicioSemanaAtual);
   const [dataFim, setDataFim] = useState(fimSemanaAtual);
+  const [emitidoEm, setEmitidoEm] = useState(hojeIso());
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
 
   async function carregar() {
-    const [resCustos, resObras, resFunc] = await Promise.all([
+    const [resCustos, resFunc] = await Promise.all([
       fetch("/api/custos"),
-      fetch("/api/obras"),
       fetch("/api/funcionarios"),
     ]);
     if (resCustos.ok) setCustos(await resCustos.json());
-    if (resObras.ok) setObras(await resObras.json());
     if (resFunc.ok) setFuncionarios(await resFunc.json());
   }
 
@@ -103,6 +105,7 @@ export default function CustosPage() {
   function montarParamsRelatorio(): URLSearchParams {
     const params = new URLSearchParams({ obraId: obraRelatorio });
     aplicarParamsPeriodo(params, modoPeriodo, dataInicio, dataFim);
+    aplicarEmitidoEm(params, emitidoEm);
     return params;
   }
 
@@ -248,6 +251,8 @@ export default function CustosPage() {
             onDataInicioChange={setDataInicio}
             dataFim={dataFim}
             onDataFimChange={setDataFim}
+            emitidoEm={emitidoEm}
+            onEmitidoEmChange={setEmitidoEm}
           />
         </div>
 

@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
+import { useObras } from "@/hooks/useObras";
 import { Download, Plus, Trash2, Wrench } from "lucide-react";
 import type { RelatorioFerramentas } from "@/lib/ferramenta-relatorio";
 import {
   aplicarParamsPeriodo,
+  aplicarEmitidoEm,
   fimSemanaAtual,
+  hojeIso,
   inicioSemanaAtual,
   type ModoPeriodo,
   validarPeriodo,
@@ -35,8 +38,8 @@ interface Ferramenta {
 }
 
 export default function FerramentasPage() {
+  const { obras } = useObras();
   const [ferramentas, setFerramentas] = useState<Ferramenta[]>([]);
-  const [obras, setObras] = useState<Obra[]>([]);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [emprestarId, setEmprestarId] = useState<string | null>(null);
@@ -47,16 +50,13 @@ export default function FerramentasPage() {
   const [modoPeriodo, setModoPeriodo] = useState<ModoPeriodo>("semana");
   const [dataInicio, setDataInicio] = useState(inicioSemanaAtual);
   const [dataFim, setDataFim] = useState(fimSemanaAtual);
+  const [emitidoEm, setEmitidoEm] = useState(hojeIso());
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
 
   async function carregar() {
-    const [resFerr, resObras] = await Promise.all([
-      fetch("/api/ferramentas"),
-      fetch("/api/obras"),
-    ]);
+    const resFerr = await fetch("/api/ferramentas");
     if (resFerr.ok) setFerramentas(await resFerr.json());
-    if (resObras.ok) setObras(await resObras.json());
   }
 
   useEffect(() => {
@@ -135,6 +135,7 @@ export default function FerramentasPage() {
   function montarParamsRelatorio(): URLSearchParams {
     const params = new URLSearchParams({ obraId: obraRelatorio });
     aplicarParamsPeriodo(params, modoPeriodo, dataInicio, dataFim);
+    aplicarEmitidoEm(params, emitidoEm);
     return params;
   }
 
@@ -308,6 +309,8 @@ export default function FerramentasPage() {
             onDataInicioChange={setDataInicio}
             dataFim={dataFim}
             onDataFimChange={setDataFim}
+            emitidoEm={emitidoEm}
+            onEmitidoEmChange={setEmitidoEm}
           />
         </div>
 

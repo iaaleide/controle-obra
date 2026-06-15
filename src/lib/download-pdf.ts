@@ -1,3 +1,7 @@
+function mobileComPdf(): boolean {
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
+
 export async function baixarPdfResposta(
   res: Response,
   nomeArquivo: string
@@ -13,6 +17,14 @@ export async function baixarPdfResposta(
 
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
+
+  if (mobileComPdf()) {
+    const aberto = window.open(url, "_blank");
+    if (!aberto) window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 120_000);
+    return { ok: true };
+  }
+
   const link = document.createElement("a");
   link.href = url;
   link.download = nomeArquivo;
@@ -22,4 +34,12 @@ export async function baixarPdfResposta(
   URL.revokeObjectURL(url);
 
   return { ok: true };
+}
+
+export async function baixarPdfDaUrl(
+  url: string,
+  nomeArquivo: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await fetch(url, { credentials: "same-origin" });
+  return baixarPdfResposta(res, nomeArquivo);
 }

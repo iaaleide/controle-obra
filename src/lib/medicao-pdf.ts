@@ -4,6 +4,9 @@ import type { ItemRelatorio } from "@prisma/client";
 import {
   aplicarRodapeTodasPaginas,
   desenharCabecalhoRelatorio,
+  desenharTextoComRodape,
+  linhaCabecalhoEmitido,
+  MARGEM_RODAPE_PDF,
 } from "@/lib/pdf-cabecalho";
 import {
   calcularPercentuaisResumoGeral,
@@ -158,7 +161,10 @@ function montarCabecalhoTabela(opcoes: OpcoesPdfMedicao): string[] {
   return head;
 }
 
-export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): Buffer {
+export function gerarPdfRelatorioMedicao(
+  relatorio: RelatorioMedicaoCompleto,
+  opcoesEmissao?: { emitidoEm?: string | null }
+): Buffer {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -191,6 +197,7 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
     { label: "Obra", valor: relatorio.obra.nome },
     { label: "Cliente", valor: relatorio.clienteNome || relatorio.obra.clienteNome || "—" },
     { label: "Período", valor: periodo },
+    linhaCabecalhoEmitido(opcoesEmissao?.emitidoEm),
   ]);
 
   const body =
@@ -205,7 +212,7 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [37, 99, 235], textColor: 255 },
     alternateRowStyles: { fillColor: [248, 250, 252] },
-    margin: { left: 14, right: 14, bottom: 32 },
+    margin: { left: 14, right: 14, bottom: MARGEM_RODAPE_PDF + 6 },
   });
 
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
@@ -222,7 +229,7 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
     y += 8;
 
     for (const item of itensVisiveis) {
-      if (y > pageHeight - 45) {
+      if (y > pageHeight - MARGEM_RODAPE_PDF - 30) {
         doc.addPage();
         y = 20;
       }
@@ -248,7 +255,7 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
     y = desenharGraficoResumoTotal(doc, y, resumoPct.percentualPrevisto, resumoPct.percentualRealizado, visResumo);
   }
 
-  if (y > pageHeight - 50) {
+  if (y > pageHeight - MARGEM_RODAPE_PDF - 30) {
     doc.addPage();
     y = 20;
   }
@@ -273,20 +280,13 @@ export function gerarPdfRelatorioMedicao(relatorio: RelatorioMedicaoCompleto): B
     body: linhasResumo,
     styles: { fontSize: 9, cellPadding: 3 },
     columnStyles: { 0: { fontStyle: "bold" } },
-    margin: { left: 14, right: 14, bottom: 32 },
+    margin: { left: 14, right: 14, bottom: MARGEM_RODAPE_PDF + 6 },
   });
 
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
 
   if (relatorio.observacoesGerais) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(30, 58, 95);
-    doc.text("Observações gerais", 14, y);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    doc.text(relatorio.observacoesGerais, 14, y + 6, { maxWidth: pageWidth - 28 });
+    desenharTextoComRodape(doc, "Observações gerais", relatorio.observacoesGerais, y);
   }
 
   aplicarRodapeTodasPaginas(doc);

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
 import { Check, ArrowLeft, User, Trash2 } from "lucide-react";
 import { labelPerfil, temPermissao } from "@/lib/permissions";
+import { useObras } from "@/hooks/useObras";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import type { Perfil } from "@prisma/client";
 
 interface Obra {
@@ -19,10 +21,6 @@ interface Funcionario {
   nome: string;
   cargo: string | null;
   obras: Obra[];
-}
-
-interface User {
-  perfil: "ADMIN" | "MESTRE" | "VISITANTE";
 }
 
 interface PresencaRegistro {
@@ -49,10 +47,10 @@ type Passo = "funcionario" | "obra" | "alocar" | "presenca";
 
 export default function PresencaPage() {
   const router = useRouter();
+  const { obras } = useObras();
+  const { user } = useSessionUser();
   const [passo, setPasso] = useState<Passo>("funcionario");
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [obras, setObras] = useState<Obra[]>([]);
-  const [user, setUser] = useState<User | null>(null);
   const [busca, setBusca] = useState("");
 
   const [funcionarioId, setFuncionarioId] = useState("");
@@ -78,26 +76,21 @@ export default function PresencaPage() {
 
   const funcionarioSelecionado = funcionarios.find((f) => f.id === funcionarioId);
 
-  async function init() {
-    const [resObras, resUser, resFunc] = await Promise.all([
-      fetch("/api/obras"),
-      fetch("/api/auth/me"),
-      fetch("/api/funcionarios"),
-    ]);
-    const listaObras = await resObras.json();
-    setObras(listaObras);
-    if (listaObras[0] && !limparObraId) setLimparObraId(listaObras[0].id);
-    const userData = await resUser.json();
-    if (userData.perfil === "VISITANTE") {
+  useEffect(() => {
+    if (user?.perfil === "VISITANTE") {
       router.replace("/dashboard/relatorios");
-      return;
     }
-    setUser(userData);
-    setFuncionarios(await resFunc.json());
-  }
+  }, [user, router]);
 
   useEffect(() => {
-    init();
+    if (obras[0] && !limparObraId) setLimparObraId(obras[0].id);
+  }, [obras, limparObraId]);
+
+  useEffect(() => {
+    fetch("/api/funcionarios")
+      .then((r) => r.json())
+      .then(setFuncionarios)
+      .catch(() => setFuncionarios([]));
   }, []);
 
   function voltarInicio() {

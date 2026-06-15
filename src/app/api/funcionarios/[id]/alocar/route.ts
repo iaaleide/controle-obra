@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import { limparAlocacoesInvalidas } from "@/lib/alocacao-limpeza";
 
 export async function POST(
   request: Request,
@@ -40,6 +41,8 @@ export async function POST(
     create: { funcionarioId: id, obraId },
     update: {},
   });
+
+  await limparAlocacoesInvalidas();
 
   return NextResponse.json({ ok: true, funcionarioId: id, obraId, obraNome: obra.nome });
 }

@@ -33,19 +33,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
+  const emitidoEm = searchParams.get("emitidoEm");
+
+  const opcoes = { incluirSemPresenca, obra: acesso.obra };
+
   const relatorio =
     dataInicio && dataFim
       ? await gerarRelatorioPeriodo(
           obraId,
           new Date(dataInicio + "T00:00:00"),
           new Date(dataFim + "T23:59:59"),
-          { incluirSemPresenca }
+          opcoes
         )
-      : await gerarRelatorioSemanal(obraId, undefined, { incluirSemPresenca });
+      : await gerarRelatorioSemanal(obraId, undefined, opcoes);
 
   if (!relatorio) {
     return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });
   }
+
+  relatorio.emitidoEm = emitidoEm;
 
   let pdf: Buffer;
   try {

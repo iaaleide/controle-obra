@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import { TipoRelatorio } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
-import { prisma } from "@/lib/prisma";
-import { enviarRelatorioEmail } from "@/lib/email";
 import {
   calcularItemMedicao,
   formatarPeriodo,
+  itemRelatorioParaCalculado,
   textoMedicaoWhatsApp,
   type ItemMedicaoInput,
 } from "@/lib/relatorio-medicao";
+import { enviarRelatorioPorCanal } from "@/lib/relatorio-enviar";
+import { buscarRelatorioMedicao } from "@/lib/relatorio-db";
 import { temPermissao } from "@/lib/permissions";
-import { paraWhatsApp } from "@/lib/telefone";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -21,6 +20,7 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const {
+    relatorioId,
     obraId,
     tipo,
     destinatario,
@@ -31,8 +31,42 @@ export async function POST(request: Request) {
     itens,
   } = body;
 
-  if (!obraId || !tipo) {
-    return NextResponse.json({ error: "obraId e tipo são obrigatórios" }, { status: 400 });
+  if (!tipo) {
+    return NextResponse.json({ error: "tipo é obrigatório" }, { status: 400 });
+  }
+
+  if (relatorioId) {
+    const relatorio = await buscarRelatorioMedicao(relatorioId);
+    if (!relatorio) {
+      return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });
+    }
+
+    const acesso = await exigirAcessoObra(session.id, session.perfil, relatorio.obraId);
+    if (!acesso.ok) {
+      return NextResponse.json({ error: acesso.error }, { status: acesso.status });
+    }
+
+    const itensCalculados = relatorio.itens.map(itemRelatorioParaCalculado);
+    const texto = textoMedicaoWhatsApp({
+      obra: relatorio.obra.nome,
+      periodo: formatarPeriodo(relatorio.periodoInicio, relatorio.periodoFim),
+      cliente: relatorio.clienteNome || relatorio.obra.clienteNome,
+      itens: itensCalculados,
+      acumuladoTotal: relatorio.acumuladoTotal != null ? Number(relatorio.acumuladoTotal) : null,
+    });
+
+    const resultado = await enviarRelatorioPorCanal({
+      tipo,
+      destinatario,
+      assuntoEmail: `Relatório de Medição — ${relatorio.obra.nome}`,
+      texto,
+    });
+
+    return NextResponse.json(resultado.body, { status: resultado.status });
+  }
+
+  if (!obraId) {
+    return NextResponse.json({ error: "obraId ou relatorioId é obrigatório" }, { status: 400 });
   }
 
   const acesso = await exigirAcessoObra(session.id, session.perfil, obraId);
@@ -40,62 +74,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
-  const obra = await prisma.obra.findUnique({ where: { id: obraId } });
-  if (!obra) {
-    return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });
-  }
-
   const listaItens: ItemMedicaoInput[] = Array.isArray(itens) ? itens : [];
   const itensCalculados = listaItens.map(calcularItemMedicao);
 
-  const inicio = periodoInicio
-    ? new Date(periodoInicio + "T12:00:00")
-    : new Date();
+  const inicio = periodoInicio ? new Date(periodoInicio + "T12:00:00") : new Date();
   const fim = periodoFim ? new Date(periodoFim + "T12:00:00") : inicio;
 
-  const resumo = {
-    obra: obra.nome,
+  const texto = textoMedicaoWhatsApp({
+    obra: acesso.obra.nome,
     periodo: formatarPeriodo(inicio, fim),
-    cliente: clienteNome || obra.clienteNome,
+    cliente: clienteNome || acesso.obra.clienteNome,
     itens: itensCalculados,
     acumuladoTotal: acumuladoTotal ?? null,
-  };
+  });
 
-  const texto = textoMedicaoWhatsApp(resumo);
+  const resultado = await enviarRelatorioPorCanal({
+    tipo,
+    destinatario,
+    assuntoEmail: `Relatório de Medição — ${acesso.obra.nome}`,
+    texto,
+  });
 
-  if (tipo === "email") {
-    if (!destinatario) {
-      return NextResponse.json({ error: "E-mail destinatário obrigatório" }, { status: 400 });
-    }
-
-    const resultado = await enviarRelatorioEmail(
-      destinatario,
-      `Relatório de Medição — ${obra.nome}`,
-      texto
-    );
-
-    return NextResponse.json(resultado, { status: resultado.ok ? 200 : 500 });
-  }
-
-  if (tipo === "whatsapp") {
-    const numero = destinatario ? paraWhatsApp(destinatario) : null;
-
-    if (destinatario && !numero) {
-      return NextResponse.json(
-        {
-          error:
-            "Telefone inválido. Use DDD + número (ex: 11 94736-6532). O código +55 do Brasil é aplicado automaticamente.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const url = numero
-      ? `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`
-      : `https://wa.me/?text=${encodeURIComponent(texto)}`;
-
-    return NextResponse.json({ ok: true, url, message: "Link WhatsApp gerado" });
-  }
-
-  return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
+  return NextResponse.json(resultado.body, { status: resultado.status });
 }

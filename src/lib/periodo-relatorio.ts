@@ -41,3 +41,14 @@ export function aplicarParamsPeriodo(
     params.set("dataFim", dataFim);
   }
 }
+
+export function formatarDataEmitido(valor?: string | null): string {
+  if (!valor) return new Date().toLocaleDateString("pt-BR");
+  const d = new Date(valor.includes("T") ? valor : `${valor}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return valor;
+  return d.toLocaleDateString("pt-BR");
+}
+
+export function aplicarEmitidoEm(params: URLSearchParams, emitidoEm?: string) {
+  if (emitidoEm) params.set("emitidoEm", emitidoEm);
+}

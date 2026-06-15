@@ -1,19 +1,13 @@
 import { NextResponse } from "next/server";
-import { TipoRelatorio } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { exigirAcessoObra } from "@/lib/acesso-obra";
 import { prisma } from "@/lib/prisma";
 import { temPermissao } from "@/lib/permissions";
+import { fotosParaCreateMany } from "@/lib/fotografico-montar";
 import { excluirRelatorioComBackup } from "@/lib/relatorio-backup";
+import { buscarRelatorioFotografico } from "@/lib/relatorio-db";
 
 type Params = { params: Promise<{ id: string }> };
-
-async function buscarRelatorio(id: string) {
-  return prisma.relatorio.findFirst({
-    where: { id, tipo: TipoRelatorio.FOTOGRAFICO },
-    include: { fotos: { orderBy: { ordem: "asc" } }, obra: true },
-  });
-}
 
 export async function GET(_request: Request, { params }: Params) {
   const session = await getSession();
@@ -22,7 +16,7 @@ export async function GET(_request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const relatorio = await buscarRelatorio(id);
+  const relatorio = await buscarRelatorioFotografico(id);
   if (!relatorio) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });
   }
@@ -42,7 +36,7 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const existente = await buscarRelatorio(id);
+  const existente = await buscarRelatorioFotografico(id);
   if (!existente) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });
   }
@@ -68,17 +62,9 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (Array.isArray(fotos)) {
       await tx.fotoRelatorio.deleteMany({ where: { relatorioId: id } });
-      const lista = fotos;
-      if (lista.length > 0) {
+      if (fotos.length > 0) {
         await tx.fotoRelatorio.createMany({
-          data: lista.map(
-            (f: { ordem: number; imagemBase64?: string; legenda?: string }, index: number) => ({
-              relatorioId: id,
-              ordem: f.ordem ?? index,
-              imagemBase64: f.imagemBase64 || null,
-              legenda: f.legenda || null,
-            })
-          ),
+          data: fotosParaCreateMany(id, fotos),
         });
       }
     }
@@ -99,7 +85,7 @@ export async function DELETE(_request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const existente = await buscarRelatorio(id);
+  const existente = await buscarRelatorioFotografico(id);
   if (!existente) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });
   }
@@ -109,10 +95,12 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ error: acesso.error }, { status: acesso.status });
   }
 
-  const excluido = await excluirRelatorioComBackup(id, TipoRelatorio.FOTOGRAFICO, {
-    id: session.id,
-    nome: session.nome,
-  });
+  const excluido = await excluirRelatorioComBackup(
+    id,
+    existente.tipo,
+    { id: session.id, nome: session.nome },
+    existente
+  );
 
   if (!excluido) {
     return NextResponse.json({ error: "Relatório não encontrado" }, { status: 404 });

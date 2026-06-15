@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { exigirAcessoObra } from "@/lib/acesso-obra";
 import { temPermissao } from "@/lib/permissions";
 import {
   gerarRelatorioSemanal,
@@ -8,8 +7,8 @@ import {
   resolverIncluirSemPresenca,
 } from "@/lib/relatorio";
 import { textoRelatorioWhatsApp } from "@/lib/pdf";
-import { enviarRelatorioEmail } from "@/lib/email";
-import { paraWhatsApp } from "@/lib/telefone";
+import { enviarRelatorioPorCanal } from "@/lib/relatorio-enviar";
+import { exigirAcessoObra } from "@/lib/acesso-obra";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -19,7 +18,7 @@ export async function POST(request: Request) {
 
   const { obraId, tipo, destinatario, dataInicio, dataFim, incluirSemPresenca } =
     await request.json();
-  const opcoes = {
+  const opcoesRelatorio = {
     incluirSemPresenca: resolverIncluirSemPresenca(session.perfil, incluirSemPresenca),
   };
 
@@ -38,49 +37,23 @@ export async function POST(request: Request) {
           obraId,
           new Date(dataInicio + "T00:00:00"),
           new Date(dataFim + "T23:59:59"),
-          opcoes
+          { ...opcoesRelatorio, obra: acesso.obra }
         )
-      : await gerarRelatorioSemanal(obraId, undefined, opcoes);
+      : await gerarRelatorioSemanal(obraId, undefined, {
+          ...opcoesRelatorio,
+          obra: acesso.obra,
+        });
 
   if (!relatorio) {
     return NextResponse.json({ error: "Obra não encontrada" }, { status: 404 });
   }
 
-  if (tipo === "email") {
-    if (!destinatario) {
-      return NextResponse.json({ error: "E-mail destinatário obrigatório" }, { status: 400 });
-    }
+  const resultado = await enviarRelatorioPorCanal({
+    tipo,
+    destinatario,
+    assuntoEmail: `Relatório de Presença — ${relatorio.obra}`,
+    texto: textoRelatorioWhatsApp(relatorio),
+  });
 
-    const corpo = textoRelatorioWhatsApp(relatorio);
-    const resultado = await enviarRelatorioEmail(
-      destinatario,
-      `Relatório de Presença — ${relatorio.obra}`,
-      corpo
-    );
-
-    return NextResponse.json(resultado, { status: resultado.ok ? 200 : 500 });
-  }
-
-  if (tipo === "whatsapp") {
-    const texto = textoRelatorioWhatsApp(relatorio);
-    const numero = destinatario ? paraWhatsApp(destinatario) : null;
-
-    if (destinatario && !numero) {
-      return NextResponse.json(
-        {
-          error:
-            "Telefone inválido. Use DDD + número (ex: 11 94736-6532). O código +55 do Brasil é aplicado automaticamente.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const url = numero
-      ? `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`
-      : `https://wa.me/?text=${encodeURIComponent(texto)}`;
-
-    return NextResponse.json({ ok: true, url, message: "Link WhatsApp gerado" });
-  }
-
-  return NextResponse.json({ error: "Tipo inválido" }, { status: 400 });
+  return NextResponse.json(resultado.body, { status: resultado.status });
 }

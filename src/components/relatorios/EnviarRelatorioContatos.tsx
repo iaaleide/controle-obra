@@ -74,6 +74,7 @@ export function EnviarRelatorioContatos({
         <Button
           variant="secondary"
           onClick={onEnviarWhatsApp}
+          loading={loading}
           disabled={disabled}
           className="shrink-0 text-green-600 hover:bg-green-50 hover:text-green-700"
           title="Enviar por WhatsApp"

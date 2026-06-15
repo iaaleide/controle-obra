@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { MoedaBrasilInput } from "@/components/ui/MoedaBrasilInput";
 import { PeriodoRelatorioSelector } from "@/components/PeriodoRelatorioSelector";
-import {
-  BarChartResumoTotal,
-  MiniBarrasLateral,
-} from "@/components/medicao/BarChartComparativo";
+import { BarChartResumoTotal } from "@/components/medicao/BarChartComparativo";
+import { LinhaItemMedicao, type ItemLinhaMedicao } from "@/components/medicao/LinhaItemMedicao";
 import {
   calcularItemMedicao,
   calcularPercentuaisResumoGeral,
@@ -21,23 +19,15 @@ import {
   type ItemMedicaoInput,
   type OpcoesPdfMedicao,
 } from "@/lib/relatorio-medicao";
-import { inicioSemanaAtual, fimSemanaAtual, type ModoPeriodo } from "@/lib/periodo-relatorio";
+import { inicioSemanaAtual, fimSemanaAtual, hojeIso, type ModoPeriodo } from "@/lib/periodo-relatorio";
 import type { ModoGraficoMedicao } from "@prisma/client";
 import { EnviarRelatorioContatos } from "@/components/relatorios/EnviarRelatorioContatos";
 import { temPermissao } from "@/lib/permissions";
+import { useObras } from "@/hooks/useObras";
+import { useSessionUser } from "@/hooks/useSessionUser";
+import { abrirLinkExterno } from "@/lib/abrir-link";
+import { baixarPdfDaUrl } from "@/lib/download-pdf";
 import { Download, FileText, Plus, Save, Trash2 } from "lucide-react";
-
-interface Obra {
-  id: string;
-  nome: string;
-  clienteNome: string | null;
-}
-
-interface User {
-  perfil: "ADMIN" | "MESTRE" | "VISITANTE";
-  email?: string | null;
-  telefone?: string | null;
-}
 
 interface RelatorioResumo {
   id: string;
@@ -46,11 +36,7 @@ interface RelatorioResumo {
   itens?: unknown[];
 }
 
-interface ItemLinha extends ItemMedicaoInput {
-  idLocal: string;
-}
-
-function novoItem(): ItemLinha {
+function novoItem(): ItemLinhaMedicao {
   return {
     idLocal: crypto.randomUUID(),
     item: "",
@@ -64,20 +50,21 @@ function novoItem(): ItemLinha {
 }
 
 export default function MedicaoPage() {
-  const [obras, setObras] = useState<Obra[]>([]);
+  const { obras } = useObras();
+  const { user } = useSessionUser();
   const [obraId, setObraId] = useState("");
   const [relatorioId, setRelatorioId] = useState<string | null>(null);
   const [modoPeriodo, setModoPeriodo] = useState<ModoPeriodo>("semana");
   const [dataInicio, setDataInicio] = useState(inicioSemanaAtual());
   const [dataFim, setDataFim] = useState(fimSemanaAtual());
+  const [emitidoEm, setEmitidoEm] = useState(hojeIso());
   const [clienteNome, setClienteNome] = useState("");
   const [acumuladoTotal, setAcumuladoTotal] = useState(0);
   const [observacoesGerais, setObservacoesGerais] = useState("");
   const [modoGrafico, setModoGrafico] = useState<ModoGraficoMedicao>("POR_SERVICO");
   const [opcoesPdf, setOpcoesPdf] = useState<OpcoesPdfMedicao>(OPCOES_PDF_MEDICAO_PADRAO);
-  const [itens, setItens] = useState<ItemLinha[]>([novoItem()]);
+  const [itens, setItens] = useState<ItemLinhaMedicao[]>([novoItem()]);
   const [salvos, setSalvos] = useState<RelatorioResumo[]>([]);
-  const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -104,23 +91,40 @@ export default function MedicaoPage() {
   );
 
   useEffect(() => {
-    fetch("/api/obras")
-      .then((r) => r.json())
-      .then(setObras);
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data) => {
-        setUser(data);
-        if (data.email) setEmail(data.email);
-        if (data.telefone) setWhatsapp(data.telefone);
-      });
-  }, []);
+    if (user?.email) setEmail(user.email);
+    if (user?.telefone) setWhatsapp(user.telefone);
+  }, [user]);
 
   const podeEnviar = user ? temPermissao(user.perfil, "enviar_relatorio") : false;
 
   useEffect(() => {
     if (obra) setClienteNome(obra.clienteNome || "");
   }, [obraId, obra]);
+
+  useEffect(() => {
+    if (!obraId) {
+      setSalvos([]);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    fetch(`/api/relatorios-medicao?obraId=${obraId}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setSalvos(data);
+        } else {
+          setSalvos([]);
+          setMensagem(data.error || "Erro ao listar relatórios salvos");
+        }
+      })
+      .catch((e) => {
+        if (e.name !== "AbortError") setSalvos([]);
+      });
+
+    return () => controller.abort();
+  }, [obraId]);
 
   async function listarSalvos() {
     if (!obraId) {
@@ -137,17 +141,13 @@ export default function MedicaoPage() {
     setSalvos(Array.isArray(data) ? data : []);
   }
 
-  useEffect(() => {
-    listarSalvos();
-  }, [obraId]);
-
-  function atualizarItem(idLocal: string, patch: Partial<ItemLinha>) {
+  const atualizarItem = useCallback((idLocal: string, patch: Partial<ItemLinhaMedicao>) => {
     setItens((prev) => prev.map((i) => (i.idLocal === idLocal ? { ...i, ...patch } : i)));
-  }
+  }, []);
 
-  function removerItem(idLocal: string) {
+  const removerItem = useCallback((idLocal: string) => {
     setItens((prev) => (prev.length <= 1 ? prev : prev.filter((i) => i.idLocal !== idLocal)));
-  }
+  }, []);
 
   async function carregarRelatorio(id: string) {
     setLoading(true);
@@ -316,31 +316,33 @@ export default function MedicaoPage() {
     setMensagem("");
     const id = await persistirRelatorio();
     if (id) {
-      window.open(`/api/relatorios-medicao/${id}/pdf`, "_blank");
-      setMensagem("PDF exportado. Relatório salvo no histórico da obra.");
+      const nome = (obra?.nome || "medicao").replace(/\s+/g, "-");
+      const resultado = await baixarPdfDaUrl(
+        `/api/relatorios-medicao/${id}/pdf?emitidoEm=${encodeURIComponent(emitidoEm)}`,
+        `medicao-${nome}.pdf`
+      );
+      setMensagem(
+        resultado.ok
+          ? "PDF exportado. Relatório salvo no histórico da obra."
+          : resultado.error
+      );
     }
     setLoading(false);
-  }
-
-  function payloadEnvio() {
-    return {
-      obraId,
-      periodoInicio: dataInicio,
-      periodoFim: dataFim,
-      clienteNome,
-      acumuladoTotal: acumuladoTotal > 0 ? acumuladoTotal : null,
-      itens: itensCalculados,
-    };
   }
 
   async function enviarEmail() {
     if (!obraId || !email) return;
     setLoading(true);
     setMensagem("");
+    const id = await persistirRelatorio();
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     const res = await fetch("/api/relatorios-medicao/enviar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payloadEnvio(), tipo: "email", destinatario: email }),
+      body: JSON.stringify({ relatorioId: id, tipo: "email", destinatario: email }),
     });
     const data = await res.json();
     setMensagem(data.message || data.error || (res.ok ? "E-mail enviado" : "Erro ao enviar"));
@@ -351,22 +353,25 @@ export default function MedicaoPage() {
     if (!obraId) return;
     setLoading(true);
     setMensagem("");
+    const id = await persistirRelatorio();
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     const res = await fetch("/api/relatorios-medicao/enviar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...payloadEnvio(),
+        relatorioId: id,
         tipo: "whatsapp",
         destinatario: whatsapp,
       }),
     });
     const data = await res.json();
-    if (data.url) window.open(data.url, "_blank");
-    setMensagem(data.message || data.error || "Link WhatsApp gerado");
+    if (data.url) abrirLinkExterno(data.url);
+    setMensagem(data.message || data.error || (data.url ? "Abrindo WhatsApp…" : "Erro ao enviar"));
     setLoading(false);
   }
-
-  const itensGrafico = itensCalculados.filter((i) => i.mostrarNoRelatorio !== false);
 
   return (
     <div className="space-y-4">
@@ -403,6 +408,8 @@ export default function MedicaoPage() {
             onDataInicioChange={setDataInicio}
             dataFim={dataFim}
             onDataFimChange={setDataFim}
+            emitidoEm={emitidoEm}
+            onEmitidoEmChange={setEmitidoEm}
           />
 
           <Input
@@ -620,107 +627,19 @@ export default function MedicaoPage() {
         </div>
 
         <div className="space-y-4">
-          {itens.map((item) => {
-            const calc = calcularItemMedicao(item);
-            return (
-              <div
-                key={item.idLocal}
-                className="flex flex-col gap-2 rounded-xl border border-slate-200 p-3 lg:flex-row lg:items-stretch"
-              >
-                <div className="min-w-0 flex-1 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  <Input
-                    label="Item"
-                    value={item.item || ""}
-                    onChange={(e) => atualizarItem(item.idLocal, { item: e.target.value })}
-                  />
-                  <div className="sm:col-span-2">
-                    <Input
-                      label="Descrição"
-                      value={item.descricao}
-                      onChange={(e) => atualizarItem(item.idLocal, { descricao: e.target.value })}
-                    />
-                  </div>
-                  <MoedaBrasilInput
-                    label="Valor Total"
-                    value={Number(item.valorTotal) || 0}
-                    onChange={(valor) => atualizarItem(item.idLocal, { valorTotal: valor })}
-                  />
-                  <Input
-                    label="% Previsto"
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="0.1"
-                    value={item.valorPrevisto || ""}
-                    onChange={(e) =>
-                      atualizarItem(item.idLocal, {
-                        valorPrevisto: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)),
-                      })
-                    }
-                  />
-                  <Input
-                    label="% Realizado"
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="0.1"
-                    value={item.valorRealizado || ""}
-                    onChange={(e) =>
-                      atualizarItem(item.idLocal, {
-                        valorRealizado: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)),
-                      })
-                    }
-                  />
-                  <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
-                    <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                      % Executado: <strong>{calc.percentualExecutado.toFixed(1)}%</strong>
-                    </p>
-                    <label className="flex items-center gap-2 text-sm text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={item.mostrarNoRelatorio !== false}
-                        onChange={(e) =>
-                          atualizarItem(item.idLocal, { mostrarNoRelatorio: e.target.checked })
-                        }
-                      />
-                      Mostrar no relatório
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => removerItem(item.idLocal)}
-                      className="ml-auto rounded-lg p-2 text-red-500 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="sm:col-span-2 lg:col-span-3">
-                    <Textarea
-                      label="Observação"
-                      rows={2}
-                      value={item.observacao || ""}
-                      onChange={(e) =>
-                        atualizarItem(item.idLocal, { observacao: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-                {item.mostrarNoRelatorio !== false &&
-                  (opcoesPdf.graficoPrevisto || opcoesPdf.graficoRealizado) && (
-                  <div className="flex items-center justify-center border-t border-slate-100 pt-2 lg:w-[104px] lg:shrink-0 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0">
-                    <MiniBarrasLateral
-                      previsto={calc.valorPrevisto}
-                      realizado={calc.valorRealizado}
-                      mostrarPrevisto={opcoesPdf.graficoPrevisto}
-                      mostrarRealizado={opcoesPdf.graficoRealizado}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {itens.map((item, index) => (
+            <LinhaItemMedicao
+              key={item.idLocal}
+              item={item}
+              calc={itensCalculados[index]}
+              opcoesPdf={opcoesPdf}
+              onAtualizar={atualizarItem}
+              onRemover={removerItem}
+            />
+          ))}
         </div>
 
-        {itensGrafico.length > 0 && (opcoesPdf.resumoPrevisto || opcoesPdf.resumoRealizado) && (
+        {itensVisiveisCalc.length > 0 && (opcoesPdf.resumoPrevisto || opcoesPdf.resumoRealizado) && (
           <div className="mt-4 rounded-xl border border-slate-200 p-4">
             <p className="mb-2 text-sm font-medium text-slate-700">
               Resumo geral — Previsto x Realizado (total)

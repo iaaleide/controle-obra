@@ -13,6 +13,8 @@ interface PeriodoRelatorioSelectorProps {
   onDataInicioChange: (valor: string) => void;
   dataFim: string;
   onDataFimChange: (valor: string) => void;
+  emitidoEm: string;
+  onEmitidoEmChange: (valor: string) => void;
 }
 
 export function PeriodoRelatorioSelector({
@@ -22,6 +24,8 @@ export function PeriodoRelatorioSelector({
   onDataInicioChange,
   dataFim,
   onDataFimChange,
+  emitidoEm,
+  onEmitidoEmChange,
 }: PeriodoRelatorioSelectorProps) {
   return (
     <>
@@ -72,6 +76,13 @@ export function PeriodoRelatorioSelector({
           />
         </div>
       )}
+
+      <Input
+        label="Emitido em"
+        type="date"
+        value={emitidoEm}
+        onChange={(e) => onEmitidoEmChange(e.target.value)}
+      />
     </>
   );
 }

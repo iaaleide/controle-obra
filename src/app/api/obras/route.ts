@@ -23,12 +23,6 @@ export async function GET(request: Request) {
     searchParams.get("incluirInativas") === "true" &&
     temPermissao(session.perfil, "excluir_obra");
 
-  await prisma.funcionarioObra.deleteMany({
-    where: {
-      OR: [{ funcionario: { ativo: false } }, { obra: { ativa: false } }],
-    },
-  });
-
   const obras = await prisma.obra.findMany({
     where: {
       ...(!incluirInativas ? { ativa: true } : {}),
