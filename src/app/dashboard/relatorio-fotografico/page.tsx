@@ -15,7 +15,7 @@ import { lerImagemComoDataUrl } from "@/lib/imagem";
 import { abrirLinkExterno } from "@/lib/abrir-link";
 import { baixarPdfDaUrl } from "@/lib/download-pdf";
 import { Download, Plus, Save, Trash2 } from "lucide-react";
-import { SelecionarImagemFoto } from "@/components/SelecionarImagemFoto";
+import { SelecionarImagemFoto, MAX_FOTOS_GALERIA } from "@/components/SelecionarImagemFoto";
 
 interface FotoSlot {
   imagemBase64: string;
@@ -138,10 +138,22 @@ export default function RelatorioFotograficoPage() {
     ]);
   }
 
-  async function onFile(index: number, file: File | null) {
-    if (!file) return;
-    const base64 = await lerImagemComoDataUrl(file);
-    atualizarFoto(index, { imagemBase64: base64 });
+  async function onArquivos(inicio: number, files: File[]) {
+    if (!files.length) return;
+    setLoading(true);
+    try {
+      const limite = Math.min(files.length, fotos.length - inicio);
+      const bases = await Promise.all(files.slice(0, limite).map((f) => lerImagemComoDataUrl(f)));
+      setFotos((prev) => {
+        const next = [...prev];
+        bases.forEach((base64, j) => {
+          next[inicio + j] = { ...next[inicio + j], imagemBase64: base64 };
+        });
+        return next;
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   function novoRelatorio() {
@@ -482,7 +494,10 @@ export default function RelatorioFotograficoPage() {
                     return (
                       <div key={i} className="rounded-xl border border-slate-200 bg-white p-3">
                         <p className="mb-2 text-xs font-medium text-slate-500">Foto {i + 1}</p>
-                        <SelecionarImagemFoto onSelect={(file) => onFile(i, file)} />
+                        <SelecionarImagemFoto
+                          maxSelecao={Math.min(MAX_FOTOS_GALERIA, fotos.length - i)}
+                          onSelect={(files) => onArquivos(i, files)}
+                        />
                         <div className="mb-2 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
                           {foto.imagemBase64 ? (
                             // eslint-disable-next-line @next/next/no-img-element

@@ -5,9 +5,13 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { SpeechTextarea } from "@/components/diario/SpeechTextarea";
+import { EnviarRelatorioContatos } from "@/components/relatorios/EnviarRelatorioContatos";
 import { lerImagemComoDataUrl } from "@/lib/imagem";
+import { abrirLinkExterno } from "@/lib/abrir-link";
 import { SelecionarImagemFoto } from "@/components/SelecionarImagemFoto";
+import { temPermissao } from "@/lib/permissions";
 import { useObras } from "@/hooks/useObras";
+import { useSessionUser } from "@/hooks/useSessionUser";
 import { Printer, Save } from "lucide-react";
 
 interface Obra {
@@ -30,6 +34,7 @@ function hojeISO() {
 
 export default function DiarioObraPage() {
   const { obras } = useObras();
+  const { user } = useSessionUser();
   const [obraId, setObraId] = useState("");
   const [data, setData] = useState(hojeISO());
   const [clienteNome, setClienteNome] = useState("");
@@ -38,10 +43,18 @@ export default function DiarioObraPage() {
   const [fotos, setFotos] = useState<FotoSlot[]>(
     SLOTS.map(() => ({ imagemBase64: "", legenda: "" }))
   );
+  const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
   const obra = obras.find((o) => o.id === obraId);
+  const podeEnviar = user ? temPermissao(user.perfil, "enviar_relatorio") : false;
+
+  useEffect(() => {
+    if (user?.email) setEmail(user.email);
+    if (user?.telefone) setWhatsapp(user.telefone);
+  }, [user]);
 
   useEffect(() => {
     if (obra) {
@@ -53,10 +66,22 @@ export default function DiarioObraPage() {
     setFotos((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)));
   }
 
-  async function onFile(index: number, file: File | null) {
-    if (!file) return;
-    const base64 = await lerImagemComoDataUrl(file);
-    atualizarFoto(index, { imagemBase64: base64 });
+  async function onArquivos(inicio: number, files: File[]) {
+    if (!files.length) return;
+    setLoading(true);
+    try {
+      const limite = Math.min(files.length, fotos.length - inicio);
+      const bases = await Promise.all(files.slice(0, limite).map((f) => lerImagemComoDataUrl(f)));
+      setFotos((prev) => {
+        const next = [...prev];
+        bases.forEach((base64, j) => {
+          next[inicio + j] = { ...next[inicio + j], imagemBase64: base64 };
+        });
+        return next;
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function salvar() {
@@ -85,6 +110,56 @@ export default function DiarioObraPage() {
     const result = await res.json();
     if (res.ok) setMensagem("Diário salvo!");
     else setMensagem(result.error || "Erro ao salvar");
+    setLoading(false);
+  }
+
+  function payloadEnvio() {
+    return {
+      obraId,
+      data,
+      clienteNome,
+      clima,
+      observacoes,
+      fotos: fotos.map((f, ordem) => ({
+        ordem,
+        imagemBase64: f.imagemBase64 || undefined,
+        legenda: f.legenda || undefined,
+      })),
+    };
+  }
+
+  async function enviarEmail() {
+    if (!obraId || !email) return;
+    setLoading(true);
+    setMensagem("");
+    const res = await fetch("/api/diario-obra/enviar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payloadEnvio(), tipo: "email", destinatario: email }),
+    });
+    const dataRes = await res.json();
+    setMensagem(dataRes.message || dataRes.error || (res.ok ? "E-mail enviado" : "Erro ao enviar"));
+    setLoading(false);
+  }
+
+  async function enviarWhatsApp() {
+    if (!obraId) return;
+    setLoading(true);
+    setMensagem("");
+    const res = await fetch("/api/diario-obra/enviar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payloadEnvio(),
+        tipo: "whatsapp",
+        destinatario: whatsapp,
+      }),
+    });
+    const dataRes = await res.json();
+    if (dataRes.url) abrirLinkExterno(dataRes.url);
+    setMensagem(
+      dataRes.message || dataRes.error || (dataRes.url ? "Abrindo WhatsApp…" : "Erro ao enviar")
+    );
     setLoading(false);
   }
 
@@ -134,15 +209,22 @@ export default function DiarioObraPage() {
             {fotos.map((foto, i) => (
               <div key={i} className="rounded-xl border border-slate-200 p-3">
                 <p className="mb-2 text-xs font-medium text-slate-500">Foto {i + 1}</p>
-                <SelecionarImagemFoto onSelect={(file) => onFile(i, file)} />
-                {foto.imagemBase64 && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={foto.imagemBase64}
-                    alt={`Foto ${i + 1}`}
-                    className="mb-2 h-24 w-full rounded-lg object-cover"
-                  />
-                )}
+                <SelecionarImagemFoto
+                  maxSelecao={fotos.length - i}
+                  onSelect={(files) => onArquivos(i, files)}
+                />
+                <div className="mb-2 flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50">
+                  {foto.imagemBase64 ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={foto.imagemBase64}
+                      alt={`Foto ${i + 1}`}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs text-slate-400">Foto {i + 1}</span>
+                  )}
+                </div>
                 <SpeechTextarea
                   label="Legenda"
                   value={foto.legenda}
@@ -165,6 +247,19 @@ export default function DiarioObraPage() {
               <Printer className="h-4 w-4" /> Imprimir
             </Button>
           </div>
+
+          {podeEnviar && obraId && (
+            <EnviarRelatorioContatos
+              email={email}
+              onEmailChange={setEmail}
+              whatsapp={whatsapp}
+              onWhatsappChange={setWhatsapp}
+              onEnviarEmail={enviarEmail}
+              onEnviarWhatsApp={enviarWhatsApp}
+              loading={loading}
+              disabled={!obraId}
+            />
+          )}
         </div>
 
         {/* Folha para impressão */}
@@ -198,13 +293,13 @@ export default function DiarioObraPage() {
             <div className="grid grid-cols-2 gap-4 print:gap-6">
               {fotos.map((foto, i) => (
                 <div key={i} className="break-inside-avoid">
-                  <div className="flex h-36 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 print:h-44">
+                  <div className="flex aspect-[4/3] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 print:aspect-auto print:min-h-[10rem]">
                     {foto.imagemBase64 ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={foto.imagemBase64}
                         alt={`Foto ${i + 1}`}
-                        className="h-full w-full rounded-lg object-cover"
+                        className="max-h-full max-w-full object-contain print:max-h-44"
                       />
                     ) : (
                       <span className="text-xs text-slate-400">Foto {i + 1}</span>
