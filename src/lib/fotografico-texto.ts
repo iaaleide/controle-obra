@@ -24,3 +24,36 @@ export function textoFotograficoWhatsApp(relatorio: RelatorioFotograficoCompleto
   texto += `\n\n${RODAPE_RELATORIO}`;
   return texto;
 }
+
+export function textoFotograficoWhatsAppLocal(params: {
+  obra: { nome: string; clienteNome?: string | null; endereco?: string | null };
+  periodoInicio: string;
+  periodoFim: string;
+  clienteNome?: string | null;
+  observacoesGerais?: string | null;
+  fotos: { legenda?: string; temFoto: boolean }[];
+}): string {
+  const periodo = formatarPeriodo(
+    new Date(params.periodoInicio + "T12:00:00"),
+    new Date(params.periodoFim + "T12:00:00")
+  );
+  const comFoto = params.fotos.filter((f) => f.temFoto);
+
+  let texto = `📷 *Relatório Fotográfico*\n`;
+  texto += `🏗️ Obra: ${params.obra.nome}\n`;
+  texto += `👤 Cliente: ${params.clienteNome || params.obra.clienteNome || "—"}\n`;
+  texto += `📍 Endereço: ${params.obra.endereco || "—"}\n`;
+  texto += `📅 Período: ${periodo}\n`;
+  texto += `🖼️ Fotos: ${comFoto.length}\n`;
+
+  comFoto.forEach((foto, i) => {
+    if (foto.legenda) texto += `\n${i + 1}. ${foto.legenda}`;
+  });
+
+  if (params.observacoesGerais) {
+    texto += `\n\n📝 Observações:\n${params.observacoesGerais}`;
+  }
+
+  texto += `\n\n${RODAPE_RELATORIO}`;
+  return texto;
+}

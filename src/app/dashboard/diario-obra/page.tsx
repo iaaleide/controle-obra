@@ -7,7 +7,8 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { SpeechTextarea } from "@/components/diario/SpeechTextarea";
 import { EnviarRelatorioContatos } from "@/components/relatorios/EnviarRelatorioContatos";
 import { lerImagemComoDataUrl } from "@/lib/imagem";
-import { abrirLinkExterno } from "@/lib/abrir-link";
+import { abrirWhatsAppComTexto } from "@/lib/whatsapp-cliente";
+import { textoDiarioWhatsApp } from "@/lib/diario-texto";
 import { SelecionarImagemFoto } from "@/components/SelecionarImagemFoto";
 import { temPermissao } from "@/lib/permissions";
 import { useObras } from "@/hooks/useObras";
@@ -46,6 +47,7 @@ export default function DiarioObraPage() {
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
   const obra = obras.find((o) => o.id === obraId);
@@ -143,24 +145,28 @@ export default function DiarioObraPage() {
   }
 
   async function enviarWhatsApp() {
-    if (!obraId) return;
-    setLoading(true);
+    if (!obraId || !obra) return;
+    setLoadingWhatsApp(true);
     setMensagem("");
-    const res = await fetch("/api/diario-obra/enviar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...payloadEnvio(),
-        tipo: "whatsapp",
-        destinatario: whatsapp,
-      }),
-    });
-    const dataRes = await res.json();
-    if (dataRes.url) abrirLinkExterno(dataRes.url);
-    setMensagem(
-      dataRes.message || dataRes.error || (dataRes.url ? "Abrindo WhatsApp…" : "Erro ao enviar")
-    );
-    setLoading(false);
+    try {
+      const texto = textoDiarioWhatsApp({
+        obra,
+        data,
+        clienteNome,
+        clima,
+        observacoes,
+        fotos: fotos.map((f) => ({
+          legenda: f.legenda,
+          imagemBase64: f.imagemBase64 ? "1" : null,
+        })),
+      });
+      const resultado = abrirWhatsAppComTexto(whatsapp, texto);
+      setMensagem(resultado.ok ? "Abrindo WhatsApp…" : resultado.error);
+    } catch {
+      setMensagem("Não foi possível abrir o WhatsApp.");
+    } finally {
+      setLoadingWhatsApp(false);
+    }
   }
 
   function imprimir() {
@@ -256,7 +262,8 @@ export default function DiarioObraPage() {
               onWhatsappChange={setWhatsapp}
               onEnviarEmail={enviarEmail}
               onEnviarWhatsApp={enviarWhatsApp}
-              loading={loading}
+              loadingEmail={loading}
+              loadingWhatsApp={loadingWhatsApp}
               disabled={!obraId}
             />
           )}

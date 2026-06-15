@@ -13,6 +13,8 @@ interface Props {
   onEnviarEmail: () => void;
   onEnviarWhatsApp: () => void;
   loading?: boolean;
+  loadingEmail?: boolean;
+  loadingWhatsApp?: boolean;
   disabled?: boolean;
 }
 
@@ -24,8 +26,13 @@ export function EnviarRelatorioContatos({
   onEnviarEmail,
   onEnviarWhatsApp,
   loading = false,
+  loadingEmail,
+  loadingWhatsApp,
   disabled = false,
 }: Props) {
+  const emailLoading = loadingEmail ?? loading;
+  const whatsAppLoading = loadingWhatsApp ?? loading;
+
   return (
     <div className="mt-4 w-full space-y-3 border-t border-slate-100 pt-4">
       <p className="text-sm font-medium text-slate-700">Enviar relatório</p>
@@ -51,7 +58,7 @@ export function EnviarRelatorioContatos({
         <Button
           variant="secondary"
           onClick={onEnviarEmail}
-          loading={loading}
+          loading={emailLoading}
           disabled={disabled || !email}
           className="mt-6 shrink-0"
           title="Enviar por e-mail"
@@ -74,7 +81,7 @@ export function EnviarRelatorioContatos({
         <Button
           variant="secondary"
           onClick={onEnviarWhatsApp}
-          loading={loading}
+          loading={whatsAppLoading}
           disabled={disabled}
           className="shrink-0 text-green-600 hover:bg-green-50 hover:text-green-700"
           title="Enviar por WhatsApp"

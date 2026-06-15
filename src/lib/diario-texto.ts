@@ -7,7 +7,7 @@ export type DiarioObraCompleto = DiarioObra & {
 };
 
 export type PayloadDiarioWhatsApp = {
-  obra: Obra;
+  obra: { nome: string; clienteNome?: string | null; endereco?: string | null };
   data: string;
   clienteNome?: string | null;
   clima?: string | null;

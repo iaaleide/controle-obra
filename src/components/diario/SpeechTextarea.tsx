@@ -8,6 +8,7 @@ interface SpeechTextareaProps {
   value: string;
   onChange: (value: string) => void;
   rows?: number;
+  maxLength?: number;
 }
 
 type SpeechRecognitionCtor = new () => {
@@ -21,15 +22,29 @@ type SpeechRecognitionCtor = new () => {
   stop: () => void;
 };
 
-export function SpeechTextarea({ label, value, onChange, rows = 2 }: SpeechTextareaProps) {
+export function SpeechTextarea({
+  label,
+  value,
+  onChange,
+  rows = 2,
+  maxLength,
+}: SpeechTextareaProps) {
   const [ouvindo, setOuvindo] = useState(false);
   const [suportado, setSuportado] = useState(false);
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
 
   const onChangeRef = useRef(onChange);
   const valueRef = useRef(value);
+  const maxLengthRef = useRef(maxLength);
   onChangeRef.current = onChange;
   valueRef.current = value;
+  maxLengthRef.current = maxLength;
+
+  function aplicarLimite(texto: string): string {
+    const max = maxLengthRef.current;
+    if (max === undefined) return texto;
+    return texto.slice(0, max);
+  }
 
   useEffect(() => {
     const w = window as Window & {
@@ -47,7 +62,8 @@ export function SpeechTextarea({ label, value, onChange, rows = 2 }: SpeechTexta
     rec.onresult = (event) => {
       const texto = event.results[0][0].transcript;
       const atual = valueRef.current;
-      onChangeRef.current(atual ? `${atual} ${texto}` : texto);
+      const combinado = atual ? `${atual} ${texto}` : texto;
+      onChangeRef.current(aplicarLimite(combinado));
     };
     rec.onerror = () => setOuvindo(false);
     rec.onend = () => setOuvindo(false);
@@ -79,24 +95,32 @@ export function SpeechTextarea({ label, value, onChange, rows = 2 }: SpeechTexta
 
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
         <label className="text-sm font-medium text-slate-700">{label}</label>
-        {suportado && (
-          <button
-            type="button"
-            onClick={toggle}
-            className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs ${
-              ouvindo ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"
-            }`}
-          >
-            {ouvindo ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
-            {ouvindo ? "Parar" : "Falar"}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {maxLength !== undefined && (
+            <span className="text-xs text-slate-400">
+              {value.length}/{maxLength}
+            </span>
+          )}
+          {suportado && (
+            <button
+              type="button"
+              onClick={toggle}
+              className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs ${
+                ouvindo ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {ouvindo ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+              {ouvindo ? "Parar" : "Falar"}
+            </button>
+          )}
+        </div>
       </div>
       <textarea
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        maxLength={maxLength}
+        onChange={(e) => onChange(aplicarLimite(e.target.value))}
         rows={rows}
         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
       />

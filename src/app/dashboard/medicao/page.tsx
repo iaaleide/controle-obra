@@ -13,9 +13,11 @@ import {
   calcularPercentuaisResumoGeral,
   calcularTotaisItens,
   formatarMoeda,
+  formatarPeriodo,
   formatarPercentual,
   normalizarOpcoesPdfMedicao,
   OPCOES_PDF_MEDICAO_PADRAO,
+  textoMedicaoWhatsApp,
   type ItemMedicaoInput,
   type OpcoesPdfMedicao,
 } from "@/lib/relatorio-medicao";
@@ -25,7 +27,7 @@ import { EnviarRelatorioContatos } from "@/components/relatorios/EnviarRelatorio
 import { temPermissao } from "@/lib/permissions";
 import { useObras } from "@/hooks/useObras";
 import { useSessionUser } from "@/hooks/useSessionUser";
-import { abrirLinkExterno } from "@/lib/abrir-link";
+import { abrirWhatsAppComTexto } from "@/lib/whatsapp-cliente";
 import { baixarPdfDaUrl } from "@/lib/download-pdf";
 import { Download, FileText, Plus, Save, Trash2 } from "lucide-react";
 
@@ -68,6 +70,7 @@ export default function MedicaoPage() {
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -350,27 +353,27 @@ export default function MedicaoPage() {
   }
 
   async function enviarWhatsApp() {
-    if (!obraId) return;
-    setLoading(true);
+    if (!obraId || !obra) return;
+    setLoadingWhatsApp(true);
     setMensagem("");
-    const id = await persistirRelatorio();
-    if (!id) {
-      setLoading(false);
-      return;
+    try {
+      const texto = textoMedicaoWhatsApp({
+        obra: obra.nome,
+        periodo: formatarPeriodo(
+          new Date(dataInicio + "T12:00:00"),
+          new Date(dataFim + "T12:00:00")
+        ),
+        cliente: clienteNome || obra.clienteNome,
+        itens: itensCalculados,
+        acumuladoTotal: acumuladoTotal > 0 ? acumuladoTotal : null,
+      });
+      const resultado = abrirWhatsAppComTexto(whatsapp, texto);
+      setMensagem(resultado.ok ? "Abrindo WhatsApp…" : resultado.error);
+    } catch {
+      setMensagem("Não foi possível abrir o WhatsApp.");
+    } finally {
+      setLoadingWhatsApp(false);
     }
-    const res = await fetch("/api/relatorios-medicao/enviar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        relatorioId: id,
-        tipo: "whatsapp",
-        destinatario: whatsapp,
-      }),
-    });
-    const data = await res.json();
-    if (data.url) abrirLinkExterno(data.url);
-    setMensagem(data.message || data.error || (data.url ? "Abrindo WhatsApp…" : "Erro ao enviar"));
-    setLoading(false);
   }
 
   return (
@@ -713,7 +716,8 @@ export default function MedicaoPage() {
             onWhatsappChange={setWhatsapp}
             onEnviarEmail={enviarEmail}
             onEnviarWhatsApp={enviarWhatsApp}
-            loading={loading}
+            loadingEmail={loading}
+            loadingWhatsApp={loadingWhatsApp}
             disabled={!obraId}
           />
         )}

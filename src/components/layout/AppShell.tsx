@@ -73,7 +73,7 @@ export function AppShell({ children, user }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-dvh pb-20 md:pb-6">
+    <div className="min-h-dvh pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <div>
@@ -131,8 +131,8 @@ export function AppShell({ children, user }: AppShellProps) {
         {children}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-100 bg-white/95 backdrop-blur-md md:hidden">
-        <div className="flex justify-around px-2 py-2">
+      <nav className="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] z-40 border-t border-slate-100 bg-white/95 backdrop-blur-md md:hidden">
+        <div className="flex justify-around px-2 py-2.5">
           {links.slice(0, 5).map((item) => (
             <Link
               key={item.href}
@@ -148,7 +148,7 @@ export function AppShell({ children, user }: AppShellProps) {
         </div>
       </nav>
 
-      <nav className="fixed bottom-4 left-1/2 hidden -translate-x-1/2 rounded-2xl border border-slate-200 bg-white px-2 py-2 shadow-lg md:flex">
+      <nav className="fixed bottom-[max(1.25rem,calc(env(safe-area-inset-bottom,0px)+0.5rem))] left-1/2 z-40 hidden -translate-x-1/2 rounded-2xl border border-slate-200 bg-white px-2 py-2 shadow-lg md:flex">
         {links.map((item) => (
           <Link
             key={item.href}

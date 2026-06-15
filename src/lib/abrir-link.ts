@@ -1,6 +1,6 @@
-/** Abre link externo (ex.: wa.me) após operações assíncronas — evita bloqueio de pop-up no celular. */
+/** Abre link externo (ex.: wa.me) — funciona após operações assíncronas no celular e Firefox. */
 export function abrirLinkExterno(url: string): void {
-  const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const mobile = /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent);
 
   if (mobile) {
     window.location.assign(url);

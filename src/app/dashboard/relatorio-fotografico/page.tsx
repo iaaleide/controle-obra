@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
@@ -12,10 +12,17 @@ import { temPermissao } from "@/lib/permissions";
 import { useObras } from "@/hooks/useObras";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { lerImagemComoDataUrl } from "@/lib/imagem";
-import { abrirLinkExterno } from "@/lib/abrir-link";
+import { textoFotograficoWhatsAppLocal } from "@/lib/fotografico-texto";
+import { abrirWhatsAppComTexto } from "@/lib/whatsapp-cliente";
 import { baixarPdfDaUrl } from "@/lib/download-pdf";
 import { Download, Plus, Save, Trash2 } from "lucide-react";
 import { SelecionarImagemFoto, MAX_FOTOS_GALERIA } from "@/components/SelecionarImagemFoto";
+import { limitarLegenda, LEGENDA_FOTO_MAX } from "@/lib/legenda-foto";
+import {
+  limparRascunhoFotografico,
+  lerRascunhoFotografico,
+  salvarRascunhoFotografico,
+} from "@/lib/rascunho-fotografico";
 
 interface FotoSlot {
   imagemBase64: string;
@@ -36,6 +43,16 @@ function totalFolhas(totalFotos: number): number {
   return Math.max(1, Math.ceil(totalFotos / FOTOS_POR_FOLHA));
 }
 
+function montarFotosParaSalvar(fotos: FotoSlot[]) {
+  return fotos
+    .map((f, ordem) => ({
+      ordem,
+      imagemBase64: f.imagemBase64 || undefined,
+      legenda: limitarLegenda(f.legenda).trim() || undefined,
+    }))
+    .filter((f) => f.imagemBase64 || f.legenda);
+}
+
 export default function RelatorioFotograficoPage() {
   const { obras } = useObras();
   const { user } = useSessionUser();
@@ -53,11 +70,93 @@ export default function RelatorioFotograficoPage() {
   >([]);
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingFotos, setLoadingFotos] = useState(false);
+  const [loadingSalvar, setLoadingSalvar] = useState(false);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
+  const [loadingHistorico, setLoadingHistorico] = useState(false);
   const [mensagem, setMensagem] = useState("");
+  const rascunhoRestaurado = useRef(false);
+  const salvoNoServidor = useRef(false);
 
   const obra = obras.find((o) => o.id === obraId);
   const fotosPreenchidas = fotos.filter((f) => f.imagemBase64);
+  const temConteudoLocal =
+    fotosPreenchidas.length > 0 || observacoes.trim().length > 0 || clienteNome.trim().length > 0;
+
+  useEffect(() => {
+    if (!obraId || salvoNoServidor.current) return;
+    const timer = setTimeout(() => {
+      const ok = salvarRascunhoFotografico({
+        obraId,
+        relatorioId,
+        dataInicio,
+        dataFim,
+        emitidoEm,
+        clienteNome,
+        observacoes,
+        fotos,
+        salvoEm: Date.now(),
+      });
+      if (!ok && temConteudoLocal) {
+        setMensagem((m) =>
+          m.includes("rascunho") ? m : "Rascunho local muito grande — salve no servidor assim que possível."
+        );
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [
+    obraId,
+    relatorioId,
+    dataInicio,
+    dataFim,
+    emitidoEm,
+    clienteNome,
+    observacoes,
+    fotos,
+    temConteudoLocal,
+  ]);
+
+  useEffect(() => {
+    const avisar = (e: BeforeUnloadEvent) => {
+      if (temConteudoLocal && !salvoNoServidor.current) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [temConteudoLocal]);
+
+  useEffect(() => {
+    if (!obraId || rascunhoRestaurado.current) return;
+    const rascunho = lerRascunhoFotografico(obraId);
+    if (!rascunho) return;
+    const idade = Date.now() - rascunho.salvoEm;
+    if (idade > 7 * 24 * 60 * 60 * 1000) {
+      limparRascunhoFotografico(obraId);
+      return;
+    }
+    const quando = new Date(rascunho.salvoEm).toLocaleString("pt-BR");
+    if (
+      !confirm(
+        `Há um rascunho não salvo desta obra (${quando}). Deseja recuperar o que estava preenchendo?`
+      )
+    ) {
+      limparRascunhoFotografico(obraId);
+      rascunhoRestaurado.current = true;
+      return;
+    }
+    setRelatorioId(rascunho.relatorioId);
+    setDataInicio(rascunho.dataInicio);
+    setDataFim(rascunho.dataFim);
+    setEmitidoEm(rascunho.emitidoEm);
+    setClienteNome(rascunho.clienteNome);
+    setObservacoes(rascunho.observacoes);
+    setFotos(rascunho.fotos);
+    setMensagem("Rascunho recuperado. Clique em Salvar para gravar no servidor.");
+    rascunhoRestaurado.current = true;
+  }, [obraId]);
 
   useEffect(() => {
     if (user?.email) setEmail(user.email);
@@ -111,7 +210,12 @@ export default function RelatorioFotograficoPage() {
   }
 
   function atualizarFoto(index: number, patch: Partial<FotoSlot>) {
-    setFotos((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)));
+    const ajustado = { ...patch };
+    if (ajustado.legenda !== undefined) {
+      ajustado.legenda = limitarLegenda(ajustado.legenda);
+    }
+    setFotos((prev) => prev.map((f, i) => (i === index ? { ...f, ...ajustado } : f)));
+    salvoNoServidor.current = false;
   }
 
   function adicionarFolha() {
@@ -140,10 +244,14 @@ export default function RelatorioFotograficoPage() {
 
   async function onArquivos(inicio: number, files: File[]) {
     if (!files.length) return;
-    setLoading(true);
+    setLoadingFotos(true);
+    setMensagem("");
     try {
       const limite = Math.min(files.length, fotos.length - inicio);
-      const bases = await Promise.all(files.slice(0, limite).map((f) => lerImagemComoDataUrl(f)));
+      const bases: string[] = [];
+      for (const file of files.slice(0, limite)) {
+        bases.push(await lerImagemComoDataUrl(file));
+      }
       setFotos((prev) => {
         const next = [...prev];
         bases.forEach((base64, j) => {
@@ -151,12 +259,18 @@ export default function RelatorioFotograficoPage() {
         });
         return next;
       });
+      salvoNoServidor.current = false;
+    } catch (e) {
+      setMensagem(e instanceof Error ? e.message : "Erro ao processar imagem");
     } finally {
-      setLoading(false);
+      setLoadingFotos(false);
     }
   }
 
-  function novoRelatorio() {
+  function novoRelatorio(limparRascunhoLocal = false) {
+    if (limparRascunhoLocal && obraId) limparRascunhoFotografico(obraId);
+    salvoNoServidor.current = false;
+    rascunhoRestaurado.current = false;
     setRelatorioId(null);
     setFotos(slotsIniciais());
     setObservacoes("");
@@ -164,7 +278,7 @@ export default function RelatorioFotograficoPage() {
   }
 
   async function carregarRelatorio(id: string) {
-    setLoading(true);
+    setLoadingHistorico(true);
     setMensagem("");
     try {
       const res = await fetch(`/api/relatorios-fotografico/${id}`);
@@ -198,11 +312,13 @@ export default function RelatorioFotograficoPage() {
         };
       });
       setFotos(slots);
+      if (obraId) limparRascunhoFotografico(obraId);
+      salvoNoServidor.current = true;
       setMensagem("Relatório carregado.");
     } catch (e) {
       setMensagem(e instanceof Error ? e.message : "Erro ao carregar relatório");
     } finally {
-      setLoading(false);
+      setLoadingHistorico(false);
     }
   }
 
@@ -220,20 +336,20 @@ export default function RelatorioFotograficoPage() {
       return;
     }
 
-    setLoading(true);
+    setLoadingHistorico(true);
     setMensagem("");
     try {
       const res = await fetch(`/api/relatorios-fotografico/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao excluir");
 
-      if (relatorioId === id) novoRelatorio();
+      if (relatorioId === id) novoRelatorio(true);
       setMensagem(data.message || "Relatório excluído.");
       await listarSalvos();
     } catch (e) {
       setMensagem(e instanceof Error ? e.message : "Erro ao excluir");
     } finally {
-      setLoading(false);
+      setLoadingHistorico(false);
     }
   }
 
@@ -246,104 +362,152 @@ export default function RelatorioFotograficoPage() {
       periodoFim: dataFim,
       clienteNome,
       observacoesGerais: observacoes,
-      fotos: fotos.map((f, ordem) => ({
-        ordem,
-        imagemBase64: f.imagemBase64 || undefined,
-        legenda: f.legenda || undefined,
-      })),
+      fotos: montarFotosParaSalvar(fotos),
     };
+
+    const corpo = JSON.stringify(payload);
+    if (corpo.length > 4_500_000) {
+      setMensagem(
+        "Relatório muito grande (muitas fotos). Remova uma folha ou use fotos menores."
+      );
+      return null;
+    }
 
     const url = relatorioId
       ? `/api/relatorios-fotografico/${relatorioId}`
       : "/api/relatorios-fotografico";
 
-    const res = await fetch(url, {
-      method: relatorioId ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
-    const result = await res.json();
-    if (!res.ok) {
-      setMensagem(result.error || "Erro ao salvar");
+    try {
+      const res = await fetch(url, {
+        method: relatorioId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: corpo,
+        signal: controller.signal,
+      });
+
+      let result: { id?: string; error?: string };
+      try {
+        result = await res.json();
+      } catch {
+        setMensagem("Resposta inválida do servidor ao salvar.");
+        return null;
+      }
+
+      if (!res.ok) {
+        setMensagem(result.error || `Erro ao salvar (${res.status})`);
+        return null;
+      }
+
+      if (!result.id) {
+        setMensagem("Erro ao salvar: resposta sem identificador.");
+        return null;
+      }
+
+      setRelatorioId(result.id);
+      void listarSalvos().catch(() => {});
+      if (obraId) limparRascunhoFotografico(obraId);
+      salvoNoServidor.current = true;
+      return result.id;
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        setMensagem("Tempo esgotado ao salvar. Verifique a conexão e tente novamente.");
+      } else {
+        setMensagem("Falha de rede ao salvar. Seu rascunho local foi mantido.");
+      }
       return null;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    setRelatorioId(result.id);
-    await listarSalvos();
-    return result.id as string;
   }
 
   async function salvar() {
-    if (!obraId) return;
-    setLoading(true);
+    if (!obraId || loadingFotos) {
+      if (loadingFotos) setMensagem("Aguarde o processamento das fotos terminar.");
+      return;
+    }
+    setLoadingSalvar(true);
     setMensagem("");
-    const id = await persistirRelatorio();
-    if (id) setMensagem("Relatório salvo!");
-    setLoading(false);
+    try {
+      const id = await persistirRelatorio();
+      if (id) setMensagem("Relatório salvo!");
+    } finally {
+      setLoadingSalvar(false);
+    }
   }
 
   async function exportarPdf() {
-    if (!obraId) return;
-    setLoading(true);
-    setMensagem("");
-    const id = await persistirRelatorio();
-    if (id) {
-      const nome = (obra?.nome || "fotografico").replace(/\s+/g, "-");
-      const resultado = await baixarPdfDaUrl(
-        `/api/relatorios-fotografico/${id}/pdf?emitidoEm=${encodeURIComponent(emitidoEm)}`,
-        `fotografico-${nome}.pdf`
-      );
-      setMensagem(
-        resultado.ok
-          ? "PDF exportado. Relatório salvo no histórico da obra."
-          : resultado.error
-      );
+    if (!obraId || loadingFotos) {
+      if (loadingFotos) setMensagem("Aguarde o processamento das fotos terminar.");
+      return;
     }
-    setLoading(false);
+    setLoadingPdf(true);
+    setMensagem("");
+    try {
+      const id = await persistirRelatorio();
+      if (id) {
+        const nome = (obra?.nome || "fotografico").replace(/\s+/g, "-");
+        const resultado = await baixarPdfDaUrl(
+          `/api/relatorios-fotografico/${id}/pdf?emitidoEm=${encodeURIComponent(emitidoEm)}`,
+          `fotografico-${nome}.pdf`
+        );
+        setMensagem(
+          resultado.ok
+            ? "PDF exportado. Relatório salvo no histórico da obra."
+            : resultado.error
+        );
+      }
+    } finally {
+      setLoadingPdf(false);
+    }
   }
 
   async function enviarEmail() {
-    if (!obraId || !email) return;
-    setLoading(true);
+    if (!obraId || !email || loadingFotos) return;
+    setLoadingEmail(true);
     setMensagem("");
-    const id = await persistirRelatorio();
-    if (!id) {
-      setLoading(false);
-      return;
+    try {
+      const id = await persistirRelatorio();
+      if (!id) return;
+      const res = await fetch("/api/relatorios-fotografico/enviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ relatorioId: id, tipo: "email", destinatario: email }),
+      });
+      const data = await res.json();
+      setMensagem(data.message || data.error || (res.ok ? "E-mail enviado" : "Erro ao enviar"));
+    } catch {
+      setMensagem("Erro de rede ao enviar e-mail.");
+    } finally {
+      setLoadingEmail(false);
     }
-    const res = await fetch("/api/relatorios-fotografico/enviar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ relatorioId: id, tipo: "email", destinatario: email }),
-    });
-    const data = await res.json();
-    setMensagem(data.message || data.error || (res.ok ? "E-mail enviado" : "Erro ao enviar"));
-    setLoading(false);
   }
 
   async function enviarWhatsApp() {
-    if (!obraId) return;
-    setLoading(true);
+    if (!obraId || loadingFotos || !obra) return;
+    setLoadingWhatsApp(true);
     setMensagem("");
-    const id = await persistirRelatorio();
-    if (!id) {
-      setLoading(false);
-      return;
+    try {
+      const texto = textoFotograficoWhatsAppLocal({
+        obra,
+        periodoInicio: dataInicio,
+        periodoFim: dataFim,
+        clienteNome,
+        observacoesGerais: observacoes,
+        fotos: fotos.map((f) => ({
+          legenda: limitarLegenda(f.legenda),
+          temFoto: !!f.imagemBase64,
+        })),
+      });
+      const resultado = abrirWhatsAppComTexto(whatsapp, texto);
+      setMensagem(resultado.ok ? "Abrindo WhatsApp…" : resultado.error);
+    } catch {
+      setMensagem("Não foi possível abrir o WhatsApp.");
+    } finally {
+      setLoadingWhatsApp(false);
     }
-    const res = await fetch("/api/relatorios-fotografico/enviar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        relatorioId: id,
-        tipo: "whatsapp",
-        destinatario: whatsapp,
-      }),
-    });
-    const data = await res.json();
-    if (data.url) abrirLinkExterno(data.url);
-    setMensagem(data.message || data.error || (data.url ? "Abrindo WhatsApp…" : "Erro ao enviar"));
-    setLoading(false);
   }
 
   const numFolhas = totalFolhas(fotos.length);
@@ -364,7 +528,11 @@ export default function RelatorioFotograficoPage() {
               value={obraId}
               onChange={(e) => {
                 setObraId(e.target.value);
-                novoRelatorio();
+                setRelatorioId(null);
+                setFotos(slotsIniciais());
+                setObservacoes("");
+                salvoNoServidor.current = false;
+                rascunhoRestaurado.current = false;
               }}
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"
             >
@@ -398,7 +566,7 @@ export default function RelatorioFotograficoPage() {
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="text-sm font-medium text-slate-700">Histórico da obra</p>
-                <Button type="button" variant="ghost" onClick={novoRelatorio} className="text-xs">
+                <Button type="button" variant="ghost" onClick={() => novoRelatorio(true)} className="text-xs">
                   Novo relatório
                 </Button>
               </div>
@@ -462,6 +630,9 @@ export default function RelatorioFotograficoPage() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium text-slate-700">
             Fotos — {numFolhas} folha(s) · {fotosPreenchidas.length} preenchida(s)
+            {loadingFotos && (
+              <span className="ml-2 text-xs font-normal text-amber-600">Processando imagens…</span>
+            )}
           </p>
           <Button type="button" variant="secondary" onClick={adicionarFolha}>
             <Plus className="h-4 w-4" /> Adicionar folha
@@ -515,6 +686,7 @@ export default function RelatorioFotograficoPage() {
                           value={foto.legenda}
                           onChange={(v) => atualizarFoto(i, { legenda: v })}
                           rows={2}
+                          maxLength={LEGENDA_FOTO_MAX}
                         />
                       </div>
                     );
@@ -556,10 +728,15 @@ export default function RelatorioFotograficoPage() {
         )}
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={salvar} loading={loading} disabled={!obraId}>
+          <Button onClick={salvar} loading={loadingSalvar} disabled={!obraId || loadingFotos}>
             <Save className="h-4 w-4" /> Salvar
           </Button>
-          <Button variant="secondary" onClick={exportarPdf} loading={loading} disabled={!obraId}>
+          <Button
+            variant="secondary"
+            onClick={exportarPdf}
+            loading={loadingPdf}
+            disabled={!obraId || loadingFotos}
+          >
             <Download className="h-4 w-4" /> Exportar PDF
           </Button>
           {relatorioId && (
@@ -581,8 +758,9 @@ export default function RelatorioFotograficoPage() {
             onWhatsappChange={setWhatsapp}
             onEnviarEmail={enviarEmail}
             onEnviarWhatsApp={enviarWhatsApp}
-            loading={loading}
-            disabled={!obraId}
+            loadingEmail={loadingEmail}
+            loadingWhatsApp={loadingWhatsApp}
+            disabled={!obraId || loadingFotos}
           />
         )}
       </Card>

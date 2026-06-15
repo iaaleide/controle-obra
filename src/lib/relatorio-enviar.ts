@@ -1,8 +1,7 @@
 import { enviarRelatorioEmail } from "@/lib/email";
-import { paraWhatsApp } from "@/lib/telefone";
+import { ERRO_TELEFONE_INVALIDO, montarUrlWhatsApp } from "@/lib/whatsapp-url";
 
-const ERRO_TELEFONE_INVALIDO =
-  "Telefone inválido. Use DDD + número (ex: 11 94736-6532). O código +55 do Brasil é aplicado automaticamente.";
+export { ERRO_TELEFONE_INVALIDO, montarUrlWhatsApp } from "@/lib/whatsapp-url";
 
 export async function enviarRelatorioPorCanal(params: {
   tipo: string;
@@ -21,13 +20,10 @@ export async function enviarRelatorioPorCanal(params: {
   }
 
   if (tipo === "whatsapp") {
-    const numero = destinatario ? paraWhatsApp(destinatario) : null;
-    if (destinatario && !numero) {
+    const url = montarUrlWhatsApp(destinatario, texto);
+    if (destinatario && !url) {
       return { status: 400, body: { error: ERRO_TELEFONE_INVALIDO } };
     }
-    const url = numero
-      ? `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`
-      : `https://wa.me/?text=${encodeURIComponent(texto)}`;
     return { status: 200, body: { ok: true, url, message: "Link WhatsApp gerado" } };
   }
 
