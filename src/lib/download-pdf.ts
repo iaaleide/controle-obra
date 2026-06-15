@@ -1,3 +1,6 @@
+import type { CallbackProgresso } from "@/lib/fetch-com-progresso";
+import { baixarBlobComProgresso } from "@/lib/fetch-com-progresso";
+
 function dispositivoMovel(): boolean {
   return /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent);
 }
@@ -37,14 +40,40 @@ export async function baixarPdfResposta(
 
 export async function baixarPdfDaUrl(
   url: string,
-  nomeArquivo: string
+  nomeArquivo: string,
+  onProgress?: CallbackProgresso
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 90_000);
 
   try {
-    const res = await fetch(url, { credentials: "same-origin", signal: controller.signal });
-    return await baixarPdfResposta(res, nomeArquivo);
+    const resultado = await baixarBlobComProgresso(
+      url,
+      { credentials: "same-origin", signal: controller.signal },
+      onProgress
+    );
+
+    if (!resultado.ok || !resultado.blob) {
+      return { ok: false, error: resultado.error || "Erro ao gerar PDF" };
+    }
+
+    const blobUrl = URL.createObjectURL(resultado.blob);
+
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = nomeArquivo;
+    if (dispositivoMovel()) link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    if (dispositivoMovel()) {
+      const aberto = window.open(blobUrl, "_blank");
+      if (!aberto) window.location.href = blobUrl;
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 120_000);
+    return { ok: true };
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") {
       return { ok: false, error: "Tempo esgotado ao gerar o PDF." };

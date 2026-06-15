@@ -8,6 +8,8 @@ import { SpeechTextarea } from "@/components/diario/SpeechTextarea";
 import { EnviarRelatorioContatos } from "@/components/relatorios/EnviarRelatorioContatos";
 import { lerImagemComoDataUrl } from "@/lib/imagem";
 import { abrirWhatsAppComTexto } from "@/lib/whatsapp-cliente";
+import { BarraProgresso } from "@/components/ui/BarraProgresso";
+import { enviarJsonComProgresso } from "@/lib/fetch-com-progresso";
 import { textoDiarioWhatsApp } from "@/lib/diario-texto";
 import { SelecionarImagemFoto } from "@/components/SelecionarImagemFoto";
 import { temPermissao } from "@/lib/permissions";
@@ -46,8 +48,11 @@ export default function DiarioObraPage() {
   );
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingFotos, setLoadingFotos] = useState(false);
+  const [loadingSalvar, setLoadingSalvar] = useState(false);
+  const [loadingEmail, setLoadingEmail] = useState(false);
   const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
+  const [progresso, setProgresso] = useState<{ valor: number; rotulo: string } | null>(null);
   const [mensagem, setMensagem] = useState("");
 
   const obra = obras.find((o) => o.id === obraId);
@@ -68,9 +73,17 @@ export default function DiarioObraPage() {
     setFotos((prev) => prev.map((f, i) => (i === index ? { ...f, ...patch } : f)));
   }
 
+  function reportarProgresso(valor: number, rotulo?: string) {
+    setProgresso({ valor, rotulo: rotulo ?? "Processando…" });
+  }
+
+  function limparProgresso() {
+    setProgresso(null);
+  }
+
   async function onArquivos(inicio: number, files: File[]) {
     if (!files.length) return;
-    setLoading(true);
+    setLoadingFotos(true);
     try {
       const limite = Math.min(files.length, fotos.length - inicio);
       const bases = await Promise.all(files.slice(0, limite).map((f) => lerImagemComoDataUrl(f)));
@@ -82,40 +95,11 @@ export default function DiarioObraPage() {
         return next;
       });
     } finally {
-      setLoading(false);
+      setLoadingFotos(false);
     }
   }
 
-  async function salvar() {
-    if (!obraId) return;
-    setLoading(true);
-    setMensagem("");
-
-    const res = await fetch("/api/diario-obra", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        obraId,
-        data,
-        clienteNome,
-        clima,
-        observacoes,
-        fotos: fotos.map((f, ordem) => ({
-          pagina: 0,
-          ordem,
-          imagemBase64: f.imagemBase64 || undefined,
-          legenda: f.legenda || undefined,
-        })),
-      }),
-    });
-
-    const result = await res.json();
-    if (res.ok) setMensagem("Diário salvo!");
-    else setMensagem(result.error || "Erro ao salvar");
-    setLoading(false);
-  }
-
-  function payloadEnvio() {
+  function montarPayloadDiario() {
     return {
       obraId,
       data,
@@ -123,6 +107,7 @@ export default function DiarioObraPage() {
       clima,
       observacoes,
       fotos: fotos.map((f, ordem) => ({
+        pagina: 0,
         ordem,
         imagemBase64: f.imagemBase64 || undefined,
         legenda: f.legenda || undefined,
@@ -130,18 +115,56 @@ export default function DiarioObraPage() {
     };
   }
 
+  function corpoDiario() {
+    return JSON.stringify(montarPayloadDiario());
+  }
+
+  async function salvar() {
+    if (!obraId) return;
+    setLoadingSalvar(true);
+    setMensagem("");
+    reportarProgresso(0, "Salvando diário…");
+    try {
+      const { ok, data: result } = await enviarJsonComProgresso<{ error?: string }>(
+        "/api/diario-obra",
+        { method: "POST", body: corpoDiario() },
+        reportarProgresso
+      );
+      if (ok) setMensagem("Diário salvo!");
+      else setMensagem(result.error || "Erro ao salvar");
+    } catch {
+      setMensagem("Falha de rede ao salvar.");
+    } finally {
+      setLoadingSalvar(false);
+      limparProgresso();
+    }
+  }
+
   async function enviarEmail() {
     if (!obraId || !email) return;
-    setLoading(true);
+    setLoadingEmail(true);
     setMensagem("");
-    const res = await fetch("/api/diario-obra/enviar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payloadEnvio(), tipo: "email", destinatario: email }),
-    });
-    const dataRes = await res.json();
-    setMensagem(dataRes.message || dataRes.error || (res.ok ? "E-mail enviado" : "Erro ao enviar"));
-    setLoading(false);
+    reportarProgresso(0, "Enviando e-mail…");
+    try {
+      const { ok, data: dataRes } = await enviarJsonComProgresso<{ message?: string; error?: string }>(
+        "/api/diario-obra/enviar",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ...montarPayloadDiario(),
+            tipo: "email",
+            destinatario: email,
+          }),
+        },
+        reportarProgresso
+      );
+      setMensagem(dataRes.message || dataRes.error || (ok ? "E-mail enviado" : "Erro ao enviar"));
+    } catch {
+      setMensagem("Erro de rede ao enviar e-mail.");
+    } finally {
+      setLoadingEmail(false);
+      limparProgresso();
+    }
   }
 
   async function enviarWhatsApp() {
@@ -241,15 +264,23 @@ export default function DiarioObraPage() {
             ))}
           </div>
 
+          {progresso && (
+            <BarraProgresso
+              className="mb-3"
+              valor={progresso.valor}
+              rotulo={progresso.rotulo}
+            />
+          )}
+
           {mensagem && (
             <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700">{mensagem}</p>
           )}
 
           <div className="flex flex-wrap gap-2">
-            <Button onClick={salvar} loading={loading} disabled={!obraId}>
+            <Button onClick={salvar} loading={loadingSalvar} disabled={!obraId || loadingFotos}>
               <Save className="h-4 w-4" /> Salvar
             </Button>
-            <Button variant="secondary" onClick={imprimir} disabled={!obraId}>
+            <Button variant="secondary" onClick={imprimir} disabled={!obraId || loadingFotos}>
               <Printer className="h-4 w-4" /> Imprimir
             </Button>
           </div>
@@ -262,9 +293,9 @@ export default function DiarioObraPage() {
               onWhatsappChange={setWhatsapp}
               onEnviarEmail={enviarEmail}
               onEnviarWhatsApp={enviarWhatsApp}
-              loadingEmail={loading}
+              loadingEmail={loadingEmail}
               loadingWhatsApp={loadingWhatsApp}
-              disabled={!obraId}
+              disabled={!obraId || loadingFotos}
             />
           )}
         </div>

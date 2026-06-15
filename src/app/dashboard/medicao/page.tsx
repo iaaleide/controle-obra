@@ -29,6 +29,12 @@ import { useObras } from "@/hooks/useObras";
 import { useSessionUser } from "@/hooks/useSessionUser";
 import { abrirWhatsAppComTexto } from "@/lib/whatsapp-cliente";
 import { baixarPdfDaUrl } from "@/lib/download-pdf";
+import { BarraProgresso } from "@/components/ui/BarraProgresso";
+import {
+  type CallbackProgresso,
+  enviarJsonComProgresso,
+  mapearProgresso,
+} from "@/lib/fetch-com-progresso";
 import { Download, FileText, Plus, Save, Trash2 } from "lucide-react";
 
 interface RelatorioResumo {
@@ -71,6 +77,7 @@ export default function MedicaoPage() {
   const [whatsapp, setWhatsapp] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
+  const [progresso, setProgresso] = useState<{ valor: number; rotulo: string } | null>(null);
   const [mensagem, setMensagem] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -243,7 +250,15 @@ export default function MedicaoPage() {
     setOpcoesPdf((prev) => ({ ...prev, [chave]: valor }));
   }
 
-  async function persistirRelatorio(): Promise<string | null> {
+  function reportarProgresso(valor: number, rotulo?: string) {
+    setProgresso({ valor, rotulo: rotulo ?? "Processando…" });
+  }
+
+  function limparProgresso() {
+    setProgresso(null);
+  }
+
+  async function persistirRelatorio(onProgress?: CallbackProgresso): Promise<string | null> {
     if (!obraId) return null;
 
     const payload = {
@@ -259,30 +274,44 @@ export default function MedicaoPage() {
     };
 
     const url = relatorioId ? `/api/relatorios-medicao/${relatorioId}` : "/api/relatorios-medicao";
-    const res = await fetch(url, {
-      method: relatorioId ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const corpo = JSON.stringify(payload);
 
-    const result = await res.json();
-    if (!res.ok) {
-      setMensagem(result.error || "Erro ao salvar");
+    try {
+      const { ok, status, data: result } = await enviarJsonComProgresso<{
+        id?: string;
+        error?: string;
+      }>(
+        url,
+        { method: relatorioId ? "PATCH" : "POST", body: corpo },
+        onProgress
+      );
+
+      if (!ok) {
+        setMensagem(result.error || `Erro ao salvar (${status})`);
+        return null;
+      }
+
+      setRelatorioId(result.id!);
+      await listarSalvos();
+      return result.id as string;
+    } catch {
+      setMensagem("Falha de rede ao salvar.");
       return null;
     }
-
-    setRelatorioId(result.id);
-    await listarSalvos();
-    return result.id as string;
   }
 
   async function salvar() {
     if (!obraId) return;
     setLoading(true);
     setMensagem("");
-    const id = await persistirRelatorio();
-    if (id) setMensagem("Relatório salvo!");
-    setLoading(false);
+    reportarProgresso(0, "Salvando relatório…");
+    try {
+      const id = await persistirRelatorio(reportarProgresso);
+      if (id) setMensagem("Relatório salvo!");
+    } finally {
+      setLoading(false);
+      limparProgresso();
+    }
   }
 
   async function importarArquivo(file: File) {
@@ -317,39 +346,51 @@ export default function MedicaoPage() {
 
     setLoading(true);
     setMensagem("");
-    const id = await persistirRelatorio();
-    if (id) {
-      const nome = (obra?.nome || "medicao").replace(/\s+/g, "-");
-      const resultado = await baixarPdfDaUrl(
-        `/api/relatorios-medicao/${id}/pdf?emitidoEm=${encodeURIComponent(emitidoEm)}`,
-        `medicao-${nome}.pdf`
-      );
-      setMensagem(
-        resultado.ok
-          ? "PDF exportado. Relatório salvo no histórico da obra."
-          : resultado.error
-      );
+    reportarProgresso(0, "Salvando relatório…");
+    try {
+      const id = await persistirRelatorio(mapearProgresso(reportarProgresso, 0, 55));
+      if (id) {
+        const nome = (obra?.nome || "medicao").replace(/\s+/g, "-");
+        const resultado = await baixarPdfDaUrl(
+          `/api/relatorios-medicao/${id}/pdf?emitidoEm=${encodeURIComponent(emitidoEm)}`,
+          `medicao-${nome}.pdf`,
+          mapearProgresso(reportarProgresso, 55, 100)
+        );
+        setMensagem(
+          resultado.ok
+            ? "PDF exportado. Relatório salvo no histórico da obra."
+            : resultado.error
+        );
+      }
+    } finally {
+      setLoading(false);
+      limparProgresso();
     }
-    setLoading(false);
   }
 
   async function enviarEmail() {
     if (!obraId || !email) return;
     setLoading(true);
     setMensagem("");
-    const id = await persistirRelatorio();
-    if (!id) {
+    reportarProgresso(0, "Salvando relatório…");
+    try {
+      const id = await persistirRelatorio(mapearProgresso(reportarProgresso, 0, 60));
+      if (!id) return;
+      const { ok, data } = await enviarJsonComProgresso<{ message?: string; error?: string }>(
+        "/api/relatorios-medicao/enviar",
+        {
+          method: "POST",
+          body: JSON.stringify({ relatorioId: id, tipo: "email", destinatario: email }),
+        },
+        mapearProgresso(reportarProgresso, 60, 100)
+      );
+      setMensagem(data.message || data.error || (ok ? "E-mail enviado" : "Erro ao enviar"));
+    } catch {
+      setMensagem("Erro de rede ao enviar e-mail.");
+    } finally {
       setLoading(false);
-      return;
+      limparProgresso();
     }
-    const res = await fetch("/api/relatorios-medicao/enviar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ relatorioId: id, tipo: "email", destinatario: email }),
-    });
-    const data = await res.json();
-    setMensagem(data.message || data.error || (res.ok ? "E-mail enviado" : "Erro ao enviar"));
-    setLoading(false);
   }
 
   async function enviarWhatsApp() {
@@ -685,6 +726,14 @@ export default function MedicaoPage() {
             onChange={(e) => setObservacoesGerais(e.target.value)}
           />
         </div>
+
+        {progresso && (
+          <BarraProgresso
+            className="mt-4"
+            valor={progresso.valor}
+            rotulo={progresso.rotulo}
+          />
+        )}
 
         {mensagem && (
           <p className="mt-4 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700">{mensagem}</p>

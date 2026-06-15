@@ -15,6 +15,12 @@ import { lerImagemComoDataUrl } from "@/lib/imagem";
 import { textoFotograficoWhatsAppLocal } from "@/lib/fotografico-texto";
 import { abrirWhatsAppComTexto } from "@/lib/whatsapp-cliente";
 import { baixarPdfDaUrl } from "@/lib/download-pdf";
+import { BarraProgresso } from "@/components/ui/BarraProgresso";
+import {
+  type CallbackProgresso,
+  enviarJsonComProgresso,
+  mapearProgresso,
+} from "@/lib/fetch-com-progresso";
 import { Download, Plus, Save, Trash2 } from "lucide-react";
 import { SelecionarImagemFoto, MAX_FOTOS_GALERIA } from "@/components/SelecionarImagemFoto";
 import { limitarLegenda, LEGENDA_FOTO_MAX } from "@/lib/legenda-foto";
@@ -76,6 +82,7 @@ export default function RelatorioFotograficoPage() {
   const [loadingEmail, setLoadingEmail] = useState(false);
   const [loadingWhatsApp, setLoadingWhatsApp] = useState(false);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
+  const [progresso, setProgresso] = useState<{ valor: number; rotulo: string } | null>(null);
   const [mensagem, setMensagem] = useState("");
   const rascunhoRestaurado = useRef(false);
   const salvoNoServidor = useRef(false);
@@ -353,7 +360,15 @@ export default function RelatorioFotograficoPage() {
     }
   }
 
-  async function persistirRelatorio(): Promise<string | null> {
+  function reportarProgresso(valor: number, rotulo?: string) {
+    setProgresso({ valor, rotulo: rotulo ?? "Processando…" });
+  }
+
+  function limparProgresso() {
+    setProgresso(null);
+  }
+
+  async function persistirRelatorio(onProgress?: CallbackProgresso): Promise<string | null> {
     if (!obraId) return null;
 
     const payload = {
@@ -381,23 +396,17 @@ export default function RelatorioFotograficoPage() {
     const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
     try {
-      const res = await fetch(url, {
+      const { ok, status, data: result } = await enviarJsonComProgresso<{
+        id?: string;
+        error?: string;
+      }>(url, {
         method: relatorioId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
         body: corpo,
         signal: controller.signal,
-      });
+      }, onProgress);
 
-      let result: { id?: string; error?: string };
-      try {
-        result = await res.json();
-      } catch {
-        setMensagem("Resposta inválida do servidor ao salvar.");
-        return null;
-      }
-
-      if (!res.ok) {
-        setMensagem(result.error || `Erro ao salvar (${res.status})`);
+      if (!ok) {
+        setMensagem(result.error || `Erro ao salvar (${status})`);
         return null;
       }
 
@@ -430,11 +439,13 @@ export default function RelatorioFotograficoPage() {
     }
     setLoadingSalvar(true);
     setMensagem("");
+    reportarProgresso(0, "Salvando relatório…");
     try {
-      const id = await persistirRelatorio();
+      const id = await persistirRelatorio(reportarProgresso);
       if (id) setMensagem("Relatório salvo!");
     } finally {
       setLoadingSalvar(false);
+      limparProgresso();
     }
   }
 
@@ -445,13 +456,15 @@ export default function RelatorioFotograficoPage() {
     }
     setLoadingPdf(true);
     setMensagem("");
+    reportarProgresso(0, "Salvando relatório…");
     try {
-      const id = await persistirRelatorio();
+      const id = await persistirRelatorio(mapearProgresso(reportarProgresso, 0, 55));
       if (id) {
         const nome = (obra?.nome || "fotografico").replace(/\s+/g, "-");
         const resultado = await baixarPdfDaUrl(
           `/api/relatorios-fotografico/${id}/pdf?emitidoEm=${encodeURIComponent(emitidoEm)}`,
-          `fotografico-${nome}.pdf`
+          `fotografico-${nome}.pdf`,
+          mapearProgresso(reportarProgresso, 55, 100)
         );
         setMensagem(
           resultado.ok
@@ -461,6 +474,7 @@ export default function RelatorioFotograficoPage() {
       }
     } finally {
       setLoadingPdf(false);
+      limparProgresso();
     }
   }
 
@@ -468,20 +482,24 @@ export default function RelatorioFotograficoPage() {
     if (!obraId || !email || loadingFotos) return;
     setLoadingEmail(true);
     setMensagem("");
+    reportarProgresso(0, "Salvando relatório…");
     try {
-      const id = await persistirRelatorio();
+      const id = await persistirRelatorio(mapearProgresso(reportarProgresso, 0, 60));
       if (!id) return;
-      const res = await fetch("/api/relatorios-fotografico/enviar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ relatorioId: id, tipo: "email", destinatario: email }),
-      });
-      const data = await res.json();
-      setMensagem(data.message || data.error || (res.ok ? "E-mail enviado" : "Erro ao enviar"));
+      const { ok, data } = await enviarJsonComProgresso<{ message?: string; error?: string }>(
+        "/api/relatorios-fotografico/enviar",
+        {
+          method: "POST",
+          body: JSON.stringify({ relatorioId: id, tipo: "email", destinatario: email }),
+        },
+        mapearProgresso(reportarProgresso, 60, 100)
+      );
+      setMensagem(data.message || data.error || (ok ? "E-mail enviado" : "Erro ao enviar"));
     } catch {
       setMensagem("Erro de rede ao enviar e-mail.");
     } finally {
       setLoadingEmail(false);
+      limparProgresso();
     }
   }
 
@@ -721,6 +739,14 @@ export default function RelatorioFotograficoPage() {
               Software desenvolvido por Atômica Engenharia®
             </p>
           </div>
+        )}
+
+        {progresso && (
+          <BarraProgresso
+            className="mt-4"
+            valor={progresso.valor}
+            rotulo={progresso.rotulo}
+          />
         )}
 
         {mensagem && (
